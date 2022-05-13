@@ -1,4 +1,4 @@
-import { eth, bsc, polygon } from './constants.js'
+import { eth, bsc, polygon } from './constants/blockchains.js'
 
 export let chain = bsc;
 export let buy = true;// false -> it goes into checkPair function, true -> goes into buyPair function
