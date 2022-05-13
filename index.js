@@ -3,23 +3,7 @@ import dotenv from 'dotenv'
 import { ethers } from 'ethers'
 
 import { eth, bsc, polygon } from './constants.js'
-dotenv.config()
-/// SETTINGS
-
-const chain = bsc
-const buy = true// false -> it goes into checkPair function, true -> goes into buyPair function
-const repeating = true// false -> if you want to buy just 1x at current price, cancel tx, true -> if you want to monitor price etc.
-const biggestLiquidityPair = false// true -> it will search for biggest liquidity pair; false -> it will use the first liquidity pair, that is big enough (with this, you can save some time, but maybe you get a little bigger slippage)
-const getAlternativeBaseToken = true// in case the specified liquidity pair isn't big enough, does it search for other liquidity pairs or not
-const gasLimit = 260000// you rather pay a more gas and not lose more time to check the gasLimit on-chain
-
-const amountInMaxUsd = 2// USD
-
-const sellTresholds = [2, 4, 8]// multipliers based on boughtPrice
-
-const sellPriceMultiplier = 1
-
-const recipient = process.env.ACCOUNT
+import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient } from './config.js'
 
 const walletTokenEth = 'WETH'
 const inputTokenEth = 'WETH'
@@ -32,8 +16,6 @@ const outputTokenBsc = 'CBT'
 const walletTokenPolygon = 'USDC'
 const inputTokenPolygon = ''// if you don't add base token, it will get it from the biggest liquidity pair
 const outputTokenPolygon = 'KMC'
-
-/// SETTINGS END
 
 const MS_2_MIN = 1000 * 60// milliseconds -> minutes conversion
 
