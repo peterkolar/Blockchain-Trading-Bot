@@ -1,10 +1,10 @@
-require('dotenv').config()
-const ethers = require('ethers')
+import dotenv from 'dotenv'
 
+import { ethers } from 'ethers'
+
+import { eth, bsc, polygon } from './constants.js'
+dotenv.config()
 /// SETTINGS
-const bsc = 'bsc'
-const eth = 'eth'
-const polygon = 'polygon'
 
 const chain = bsc
 const buy = true// false -> it goes into checkPair function, true -> goes into buyPair function
