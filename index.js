@@ -6,21 +6,13 @@ import { eth, bsc, polygon } from './constants/blockchains.js'
 import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient } from './config.js'
 import { walletTokenEth, inputTokenEth, outputTokenEth, walletTokenBsc, inputTokenBsc, outputTokenBsc, walletTokenPolygon, inputTokenPolygon, outputTokenPolygon, tokenAddressesAllChains, tokenDecimalsAllChains } from './constants/tokens.js'
 import { exchangesAddresses } from './constants/exchanges.js'
+import { RPC_URLS } from './constants/RPCs.js'
 
 const MS_2_MIN = 1000 * 60// milliseconds -> minutes conversion
 
 let provider
 
-let RPC_URL
-
-if (chain == eth) {
-  RPC_URL = process.env.RPC_URL_ETH_INFURA
-} else if (chain == bsc) {
-  RPC_URL = process.env.RPC_URL_BSC_ORIGINAL
-} else if (chain == polygon) {
-  RPC_URL = process.env.RPC_URL_POLYGON_INFURA
-}
-
+const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
 const tokenDecimals = tokenDecimalsAllChains[chain]
 
