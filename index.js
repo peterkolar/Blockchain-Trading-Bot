@@ -7,8 +7,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS } from './constants/exchanges.js'
 import { RPC_URLS } from './constants/RPCs.js'
-
-const MS_2_MIN = 1000 * 60// milliseconds -> minutes conversion
+import { MS_2_MIN } from './constants/simple.js'
 
 let provider
 
