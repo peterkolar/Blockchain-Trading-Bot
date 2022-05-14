@@ -1,5 +1,3 @@
-import dotenv from 'dotenv'
-
 import { ethers } from 'ethers'
 
 import { eth, bsc, polygon } from './constants/blockchains.js'

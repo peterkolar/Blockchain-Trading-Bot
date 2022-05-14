@@ -30,25 +30,25 @@ const inputTokenPolygon = ''// if you don't add base token, it will get it from 
 const outputTokenPolygon = 'KMC'
 
 export const walletTokens = {
-  eth: walletTokenEth,
-  bsc: walletTokenBsc,
-  polygon: walletTokenPolygon
+  [eth]: walletTokenEth,
+  [bsc]: walletTokenBsc,
+  [polygon]: walletTokenPolygon
 }
 
 export const inputTokens = {
-  eth: inputTokenEth,
-  bsc: inputTokenBsc,
-  polygon: inputTokenPolygon
+  [eth]: inputTokenEth,
+  [bsc]: inputTokenBsc,
+  [polygon]: inputTokenPolygon
 }
 
 export const outputTokens = {
-  eth: outputTokenEth,
-  bsc: outputTokenBsc,
-  polygon: outputTokenPolygon
+  [eth]: outputTokenEth,
+  [bsc]: outputTokenBsc,
+  [polygon]: outputTokenPolygon
 }
 
 export const RPC_URLS = {
-  eth: process.env.RPC_URL_ETH_INFURA,
-  bsc: process.env.RPC_URL_BSC_ORIGINAL,
-  polygon: process.env.RPC_URL_POLYGON_INFURA
+  [eth]: process.env.RPC_URL_ETH_INFURA,
+  [bsc]: process.env.RPC_URL_BSC_ORIGINAL,
+  [polygon]: process.env.RPC_URL_POLYGON_INFURA
 }
