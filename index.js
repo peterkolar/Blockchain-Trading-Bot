@@ -5,6 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
+import { checkAllowance } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -22,9 +23,9 @@ const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
 const baseTokenUsdPairAddresses = baseTokenUsdPairAddressesAllChains[chain]// WBNB/BUSD, WETH/USDT, WMATIC/USDT
 const baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesAllChains[chain]// WBNB or BUSD, WETH or USDT, WMATIC or USDT
 
-let walletToken = walletTokens[chain]
-let inputToken = inputTokens[chain]
-let outputToken = outputTokens[chain]
+const walletToken = walletTokens[chain]
+const inputToken = inputTokens[chain]
+const outputToken = outputTokens[chain]
 
 const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
 
@@ -99,7 +100,7 @@ async function newTrade () {
   }
 
   if (!outputTokenApproved) {
-    const allowance = await checkAllowance(outputToken)
+    const allowance = await checkAllowance(account, outputToken)
     if (allowance == 0) {
       let approved = false
       while (!approved) {
@@ -177,20 +178,6 @@ async function newTrade () {
   }
 
   alreadyInFunction = false
-}
-
-async function checkAllowance (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
-  let allowance = 0
-
-  try {
-    allowance = await tokenContractEthers.allowance(account.address, exchangeAddresses.router)
-  } catch (error) {
-    console.log('error checkAllowance for ' + tokenSymbol + ': ' + error.message)
-    return allowance
-  }
-
-  return allowance
 }
 
 async function approveMax (tokenSymbol) {
@@ -585,7 +572,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
 
         // checks, if token is approved and approve it if needed
         if (!outputTokenApproved) {
-          const allowance = await checkAllowance(outputTokenSymbol)
+          const allowance = await checkAllowance(account, outputTokenSymbol)
           if (allowance == 0) {
             let approved = false
             while (!approved) {
