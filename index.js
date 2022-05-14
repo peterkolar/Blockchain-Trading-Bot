@@ -1,309 +1,47 @@
-require('dotenv').config()
-const ethers = require('ethers')
+import { ethers } from 'ethers'
 
-/// SETTINGS
-const bsc = 'bsc'
-const eth = 'eth'
-const polygon = 'polygon'
+import { eth, bsc, polygon } from './constants/blockchains.js'
+import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens, RPC_URLS } from './config.js'
+import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
+import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
+import { MS_2_MIN } from './constants/simple.js'
 
-const chain = bsc
-const buy = true// false -> it goes into checkPair function, true -> goes into buyPair function
-const repeating = true// false -> if you want to buy just 1x at current price, cancel tx, true -> if you want to monitor price etc.
-const biggestLiquidityPair = false// true -> it will search for biggest liquidity pair; false -> it will use the first liquidity pair, that is big enough (with this, you can save some time, but maybe you get a little bigger slippage)
-const getAlternativeBaseToken = true// in case the specified liquidity pair isn't big enough, does it search for other liquidity pairs or not
-const gasLimit = 260000// you rather pay a more gas and not lose more time to check the gasLimit on-chain
+const RPC_URL = RPC_URLS[chain]
+const tokenAddresses = tokenAddressesAllChains[chain]
+const tokenDecimals = tokenDecimalsAllChains[chain]
 
-const amountInMaxUsd = 2// USD
+const exchangeAddresses = exchangesAddresses[chain]
 
-const sellTresholds = [2, 4, 8]// multipliers based on boughtPrice
+const EXCHANGE_PAIR_ABI = EXCHANGE_PAIR_ABIS[chain]
 
-const sellPriceMultiplier = 1
+const baseTokens = baseTokensAllChains[chain]
+const basePairAddresses = basePairAddressesAllChains[chain]
 
-const recipient = process.env.ACCOUNT
+const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
 
-const walletTokenEth = 'WETH'
-const inputTokenEth = 'WETH'
-const outputTokenEth = 'RISE'
+const baseTokenUsdPairAddresses = baseTokenUsdPairAddressesAllChains[chain]// WBNB/BUSD, WETH/USDT, WMATIC/USDT
+const baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesAllChains[chain]// WBNB or BUSD, WETH or USDT, WMATIC or USDT
 
-const walletTokenBsc = 'BUSD'
-const inputTokenBsc = ''
-const outputTokenBsc = 'CBT'
+let walletToken = walletTokens[chain]
+let inputToken = inputTokens[chain]
+let outputToken = outputTokens[chain]
 
-const walletTokenPolygon = 'USDC'
-const inputTokenPolygon = ''// if you don't add base token, it will get it from the biggest liquidity pair
-const outputTokenPolygon = 'KMC'
-
-/// SETTINGS END
-
-const MS_2_MIN = 1000 * 60// milliseconds -> minutes conversion
-
-let provider
-let exchangeAddresses
-
-let RPC_URL
-
-if (chain == eth) {
-  RPC_URL = process.env.RPC_URL_ETH_INFURA
-} else if (chain == bsc) {
-  RPC_URL = process.env.RPC_URL_BSC_ORIGINAL
-} else if (chain == polygon) {
-  RPC_URL = process.env.RPC_URL_POLYGON_INFURA
-}
-
-if (chain == eth) {
-  exchangeAddresses = {
-    nativeToken: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
-    factory: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f',
-    router: '0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D',
-    initCode: '0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f'
-  }
-} else if (chain == bsc) {
-  exchangeAddresses = {
-    nativeToken: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', // WBNB
-    factory: '0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73',
-    router: '0x10ED43C718714eb63d5aA57B78B54704E256024E',
-    initCode: '0x00fb7f630766e6a796048ea87d01acd3068e8ff67d078148a3fa3f4a84f69bd5'// pancakeswap v2 (v1 is different)
-  }
-} else if (chain == polygon) {
-  exchangeAddresses = {
-    nativeToken: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', // WMATIC
-    factory: '0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32',
-    router: '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff',
-    initCode: '0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f'
-  }
-}
-provider = new ethers.providers.JsonRpcProvider(RPC_URL)
+const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
 
 const wallet = ethers.Wallet.fromMnemonic(process.env.MNEMONIC)
 
 const account = wallet.connect(provider)
 
-const factory = new ethers.Contract(
-  exchangeAddresses.factory,
-  ['event PairCreated(address indexed token0, address indexed token1, address pair, uint)'],
-  account
-)
-
-// uniswap v2
-// Uniswap v2 Factory Contract: https://etherscan.io/address/0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f#code
-const UNISWAP_V2_FACTORY_ABI = [{ inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], payable: false, stateMutability: 'nonpayable', type: 'constructor' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'token0', type: 'address' }, { indexed: true, internalType: 'address', name: 'token1', type: 'address' }, { indexed: false, internalType: 'address', name: 'pair', type: 'address' }, { indexed: false, internalType: 'uint256', name: '', type: 'uint256' }], name: 'PairCreated', type: 'event' }, { constant: true, inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], name: 'allPairs', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'allPairsLength', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'tokenA', type: 'address' }, { internalType: 'address', name: 'tokenB', type: 'address' }], name: 'createPair', outputs: [{ internalType: 'address', name: 'pair', type: 'address' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'feeTo', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'feeToSetter', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }, { internalType: 'address', name: '', type: 'address' }], name: 'getPair', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_feeTo', type: 'address' }], name: 'setFeeTo', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], name: 'setFeeToSetter', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }]
-const UNISWAP_V2_FACTORY_ADDRESS = '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f'
-const uniswapV2FactoryContract = new ethers.Contract(UNISWAP_V2_FACTORY_ADDRESS, UNISWAP_V2_FACTORY_ABI, account)
-
-// pancakeswap factory V2:
-const PANCAKESWAP_V2_FACTORY_ABI = [{ inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], payable: false, stateMutability: 'nonpayable', type: 'constructor' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'token0', type: 'address' }, { indexed: true, internalType: 'address', name: 'token1', type: 'address' }, { indexed: false, internalType: 'address', name: 'pair', type: 'address' }, { indexed: false, internalType: 'uint256', name: '', type: 'uint256' }], name: 'PairCreated', type: 'event' }, { constant: true, inputs: [], name: 'INIT_CODE_PAIR_HASH', outputs: [{ internalType: 'bytes32', name: '', type: 'bytes32' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], name: 'allPairs', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'allPairsLength', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'tokenA', type: 'address' }, { internalType: 'address', name: 'tokenB', type: 'address' }], name: 'createPair', outputs: [{ internalType: 'address', name: 'pair', type: 'address' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'feeTo', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'feeToSetter', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }, { internalType: 'address', name: '', type: 'address' }], name: 'getPair', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_feeTo', type: 'address' }], name: 'setFeeTo', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], name: 'setFeeToSetter', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }]
-const PANCAKESWAP_V2_FACTORY_ADDRESS = '0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73'
-const pancakeV2FactoryContract = new ethers.Contract(PANCAKESWAP_V2_FACTORY_ADDRESS, PANCAKESWAP_V2_FACTORY_ABI, account)
-
-// Pancakeswap v2 WBNB/USDC, WBNB/POCO PAIR Template: https://bscscan.com/address/0xd99c7F6C65857AC913a8f880A4cb84032AB2FC5b#code
-const PANCAKESWAP_V2_PAIR_ABI = [{ inputs: [], payable: false, stateMutability: 'nonpayable', type: 'constructor' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'owner', type: 'address' }, { indexed: true, internalType: 'address', name: 'spender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'Approval', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'sender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'amount0', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1', type: 'uint256' }, { indexed: true, internalType: 'address', name: 'to', type: 'address' }], name: 'Burn', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'sender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'amount0', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1', type: 'uint256' }], name: 'Mint', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'sender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'amount0In', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1In', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount0Out', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1Out', type: 'uint256' }, { indexed: true, internalType: 'address', name: 'to', type: 'address' }], name: 'Swap', type: 'event' }, { anonymous: false, inputs: [{ indexed: false, internalType: 'uint112', name: 'reserve0', type: 'uint112' }, { indexed: false, internalType: 'uint112', name: 'reserve1', type: 'uint112' }], name: 'Sync', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'from', type: 'address' }, { indexed: true, internalType: 'address', name: 'to', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'Transfer', type: 'event' }, { constant: true, inputs: [], name: 'DOMAIN_SEPARATOR', outputs: [{ internalType: 'bytes32', name: '', type: 'bytes32' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'MINIMUM_LIQUIDITY', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'PERMIT_TYPEHASH', outputs: [{ internalType: 'bytes32', name: '', type: 'bytes32' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }, { internalType: 'address', name: '', type: 'address' }], name: 'allowance', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'spender', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'approve', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }], name: 'balanceOf', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }], name: 'burn', outputs: [{ internalType: 'uint256', name: 'amount0', type: 'uint256' }, { internalType: 'uint256', name: 'amount1', type: 'uint256' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'decimals', outputs: [{ internalType: 'uint8', name: '', type: 'uint8' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'factory', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'getReserves', outputs: [{ internalType: 'uint112', name: '_reserve0', type: 'uint112' }, { internalType: 'uint112', name: '_reserve1', type: 'uint112' }, { internalType: 'uint32', name: '_blockTimestampLast', type: 'uint32' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_token0', type: 'address' }, { internalType: 'address', name: '_token1', type: 'address' }], name: 'initialize', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'kLast', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }], name: 'mint', outputs: [{ internalType: 'uint256', name: 'liquidity', type: 'uint256' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'name', outputs: [{ internalType: 'string', name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }], name: 'nonces', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'owner', type: 'address' }, { internalType: 'address', name: 'spender', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }, { internalType: 'uint256', name: 'deadline', type: 'uint256' }, { internalType: 'uint8', name: 'v', type: 'uint8' }, { internalType: 'bytes32', name: 'r', type: 'bytes32' }, { internalType: 'bytes32', name: 's', type: 'bytes32' }], name: 'permit', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'price0CumulativeLast', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'price1CumulativeLast', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }], name: 'skim', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ internalType: 'uint256', name: 'amount0Out', type: 'uint256' }, { internalType: 'uint256', name: 'amount1Out', type: 'uint256' }, { internalType: 'address', name: 'to', type: 'address' }, { internalType: 'bytes', name: 'data', type: 'bytes' }], name: 'swap', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'symbol', outputs: [{ internalType: 'string', name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [], name: 'sync', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'token0', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'token1', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'totalSupply', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'transfer', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'from', type: 'address' }, { internalType: 'address', name: 'to', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'transferFrom', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }]
-
 // functions from Contract Source Code, not from Contract ABI section - you only need interface
 const router = new ethers.Contract(
   exchangeAddresses.router,
-  [
-    'function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)',
-    'function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
-    // manually added:
-    'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
-    'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)'
-  ],
+  ROUTER_FUNCTIONS,
   account
 )
 
-// quickswap factory:
-const QUICKSWAP_FACTORY_ADDRESS = '0x5757371414417b8C6CAad45bAeF941aBc7d3Ab32'
-const QUICKSWAP_FACTORY_ABI = [{ inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], payable: false, stateMutability: 'nonpayable', type: 'constructor' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'token0', type: 'address' }, { indexed: true, internalType: 'address', name: 'token1', type: 'address' }, { indexed: false, internalType: 'address', name: 'pair', type: 'address' }, { indexed: false, internalType: 'uint256', name: '', type: 'uint256' }], name: 'PairCreated', type: 'event' }, { constant: true, inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], name: 'allPairs', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'allPairsLength', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'tokenA', type: 'address' }, { internalType: 'address', name: 'tokenB', type: 'address' }], name: 'createPair', outputs: [{ internalType: 'address', name: 'pair', type: 'address' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'feeTo', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'feeToSetter', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }, { internalType: 'address', name: '', type: 'address' }], name: 'getPair', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_feeTo', type: 'address' }], name: 'setFeeTo', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], name: 'setFeeToSetter', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }]
-const quickswapFactoryContract = new ethers.Contract(QUICKSWAP_FACTORY_ADDRESS, QUICKSWAP_FACTORY_ABI, account)
-
-const QUICKSWAP_PAIR_ABI = [{ inputs: [], payable: false, stateMutability: 'nonpayable', type: 'constructor' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'owner', type: 'address' }, { indexed: true, internalType: 'address', name: 'spender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'Approval', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'sender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'amount0', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1', type: 'uint256' }, { indexed: true, internalType: 'address', name: 'to', type: 'address' }], name: 'Burn', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'sender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'amount0', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1', type: 'uint256' }], name: 'Mint', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'sender', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'amount0In', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1In', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount0Out', type: 'uint256' }, { indexed: false, internalType: 'uint256', name: 'amount1Out', type: 'uint256' }, { indexed: true, internalType: 'address', name: 'to', type: 'address' }], name: 'Swap', type: 'event' }, { anonymous: false, inputs: [{ indexed: false, internalType: 'uint112', name: 'reserve0', type: 'uint112' }, { indexed: false, internalType: 'uint112', name: 'reserve1', type: 'uint112' }], name: 'Sync', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, internalType: 'address', name: 'from', type: 'address' }, { indexed: true, internalType: 'address', name: 'to', type: 'address' }, { indexed: false, internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'Transfer', type: 'event' }, { constant: true, inputs: [], name: 'DOMAIN_SEPARATOR', outputs: [{ internalType: 'bytes32', name: '', type: 'bytes32' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'MINIMUM_LIQUIDITY', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'PERMIT_TYPEHASH', outputs: [{ internalType: 'bytes32', name: '', type: 'bytes32' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }, { internalType: 'address', name: '', type: 'address' }], name: 'allowance', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'spender', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'approve', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }], name: 'balanceOf', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }], name: 'burn', outputs: [{ internalType: 'uint256', name: 'amount0', type: 'uint256' }, { internalType: 'uint256', name: 'amount1', type: 'uint256' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'decimals', outputs: [{ internalType: 'uint8', name: '', type: 'uint8' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'factory', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'getReserves', outputs: [{ internalType: 'uint112', name: '_reserve0', type: 'uint112' }, { internalType: 'uint112', name: '_reserve1', type: 'uint112' }, { internalType: 'uint32', name: '_blockTimestampLast', type: 'uint32' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: '_token0', type: 'address' }, { internalType: 'address', name: '_token1', type: 'address' }], name: 'initialize', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'kLast', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }], name: 'mint', outputs: [{ internalType: 'uint256', name: 'liquidity', type: 'uint256' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'name', outputs: [{ internalType: 'string', name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ internalType: 'address', name: '', type: 'address' }], name: 'nonces', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'owner', type: 'address' }, { internalType: 'address', name: 'spender', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }, { internalType: 'uint256', name: 'deadline', type: 'uint256' }, { internalType: 'uint8', name: 'v', type: 'uint8' }, { internalType: 'bytes32', name: 'r', type: 'bytes32' }, { internalType: 'bytes32', name: 's', type: 'bytes32' }], name: 'permit', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'price0CumulativeLast', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'price1CumulativeLast', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }], name: 'skim', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ internalType: 'uint256', name: 'amount0Out', type: 'uint256' }, { internalType: 'uint256', name: 'amount1Out', type: 'uint256' }, { internalType: 'address', name: 'to', type: 'address' }, { internalType: 'bytes', name: 'data', type: 'bytes' }], name: 'swap', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'symbol', outputs: [{ internalType: 'string', name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [], name: 'sync', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'token0', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'token1', outputs: [{ internalType: 'address', name: '', type: 'address' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'totalSupply', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'to', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'transfer', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ internalType: 'address', name: 'from', type: 'address' }, { internalType: 'address', name: 'to', type: 'address' }, { internalType: 'uint256', name: 'value', type: 'uint256' }], name: 'transferFrom', outputs: [{ internalType: 'bool', name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }]
-
-let EXCHANGE_PAIR_ABI
-if (chain == eth) {
-  EXCHANGE_PAIR_ABI = UNISWAP_V2_FACTORY_ABI
-}
-if (chain == bsc) {
-  EXCHANGE_PAIR_ABI = PANCAKESWAP_V2_PAIR_ABI
-}
-if (chain == polygon) {
-  EXCHANGE_PAIR_ABI = QUICKSWAP_PAIR_ABI
-}
-
-const token_contract_ABI = [{ constant: true, inputs: [], name: 'name', outputs: [{ name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ name: 'guy', type: 'address' }, { name: 'wad', type: 'uint256' }], name: 'approve', outputs: [{ name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'totalSupply', outputs: [{ name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ name: 'src', type: 'address' }, { name: 'dst', type: 'address' }, { name: 'wad', type: 'uint256' }], name: 'transferFrom', outputs: [{ name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ name: 'wad', type: 'uint256' }], name: 'withdraw', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ name: '', type: 'address' }], name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'symbol', outputs: [{ name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ name: 'dst', type: 'address' }, { name: 'wad', type: 'uint256' }], name: 'transfer', outputs: [{ name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [], name: 'deposit', outputs: [], payable: true, stateMutability: 'payable', type: 'function' }, { constant: true, inputs: [{ name: '', type: 'address' }, { name: '', type: 'address' }], name: 'allowance', outputs: [{ name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { payable: true, stateMutability: 'payable', type: 'fallback' }, { anonymous: false, inputs: [{ indexed: true, name: 'src', type: 'address' }, { indexed: true, name: 'guy', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Approval', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, name: 'src', type: 'address' }, { indexed: true, name: 'dst', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Transfer', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, name: 'dst', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Deposit', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, name: 'src', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Withdrawal', type: 'event' }]
-
-const tokenAddressesEth = {
-  WETH: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-  WBTC: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
-  MKR: '0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2',
-  DAI: '0x6b175474e89094c44da98b954eedeac495271d0f',
-  USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  KNC: '0xdd974d5c2e2928dea5f71b9825b8b646686bd200',
-  LINK: '0x514910771af9ca656af840dff83e8264ecf986ca',
-  RISE: '0x8a2d988fe2e8c6716cbcef1b33df626c692f7b98',
-  USDT: '0xdac17f958d2ee523a2206206994597c13d831ec7'
-}
-
-const tokenDecimalsEth = {
-  WETH: 18,
-  WBTC: 8,
-  MKR: 18,
-  DAI: 18,
-  USDC: 6,
-  KNC: 18,
-  LINK: 18,
-  RISE: 9,
-  USDT: 6
-}
-
-const tokenAddressesBsc = {
-  WBNB: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
-  BUSD: '0xe9e7cea3dedca5984780bafc599bd69add087d56',
-  DAI: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3',
-  KING: '0x0ccd575bf9378c06f6dca82f8122f570769f00c2',
-  USDC: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
-  ZIL: '0xb86abcb37c3a4b64f74f59301aff131a1becc787',
-  POCO: '0x394bBA8F309f3462b31238B3fd04b83F71A98848',
-  USDT: '0x55d398326f99059ff775485246999027b3197955',
-  GGG: '0xd8047afecb86e44eff3add991b9f063ed4ca716b',
-  TITA: '0x0c1253a30da9580472064a91946c5ce0C58aCf7f',
-  H2O: '0xb8b932d41d6be935ce1666aaf41f056093f9faee',
-  DON: '0x86B3F23B6e90F5bbfac59b5b2661134Ef8Ffd255',
-  GST: '0x7eDC0eC89F987ECd85617b891c44fE462a325869',
-  BTL: '0x51e7b598c9155b9dccb04eb42519f6eec9c841e9',
-  SPIN: '',
-  BLOCK: '0xbc7a566b85ef73f935e640a06b5a8b031cd975df',
-  CBT: '0x7c73967dC8c804Ea028247f5A953052f0CD5Fd58'
-}
-
-// if you set 0 decimals, it will get it from smart contract
-const tokenDecimalsBsc = {
-  WBNB: 18,
-  BUSD: 18,
-  DAI: 18,
-  KING: 18,
-  USDC: 18,
-  ZIL: 12,
-  POCO: 18,
-  USDT: 18,
-  GGG: 18,
-  TITA: 18,
-  H2O: 18,
-  DON: 18,
-  GST: 18,
-  BTL: 6,
-  SPIN: 0,
-  BLOCK: 0,
-  CBT: 18
-}
-
-const tokenAddressesPolygon = {
-  WMATIC: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',
-  TECH: '0x6286a9e6f7e745a6d884561d88f94542d6715698',
-  USDC: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174',
-  USDT: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f',
-  UM: '0x3B1A0c9252ee7403093fF55b4a5886d49a3d837a',
-  WETH: '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619',
-  BLOK: '0x229b1b6c23ff8953d663c4cbb519717e323a0a84',
-  CHAMP: '0x8f9E8e833A69Aa467E42c46cCA640da84DD4585f',
-  GAIA: '0x723b17718289a91af252d616de2c77944962d122',
-  DAI: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
-  QUICK: '0x831753DD7087CaC61aB5644b308642cc1c33Dc13',
-  TRD: '0x2A1f0aD3Cab040e28845734d932f3fF0A24B14F4',
-  KMC: ''
-}
-
-const tokenDecimalsPolygon = {
-  WMATIC: 18,
-  TECH: 18,
-  USDC: 6,
-  USDT: 6,
-  UM: 18,
-  WETH: 18,
-  BLOK: 18,
-  CHAMP: 8,
-  GAIA: 18,
-  DAI: 18,
-  QUICK: 18,
-  TRD: 18,
-  KMC: 0,
-  TRY: 0,
-  TECH2: 0
-}
-
-let tokenAddresses
-let tokenDecimals
-
-if (chain == eth) {
-  tokenAddresses = tokenAddressesEth
-  tokenDecimals = tokenDecimalsEth
-} else if (chain == bsc) {
-  tokenAddresses = tokenAddressesBsc
-  tokenDecimals = tokenDecimalsBsc
-} else if (chain == polygon) {
-  tokenAddresses = tokenAddressesPolygon
-  tokenDecimals = tokenDecimalsPolygon
-}
-
 let alreadyInFunction = false
 
-let walletToken = ''
-let inputToken = ''
-let outputToken = ''
-
 let izpisWalletInputOutput = false
-
-let baseTokens
-let basePairAddresses
-
-if (chain == bsc) {
-  baseTokens = ['WBNB', 'BUSD', 'USDT']
-  basePairAddresses = { WBNB: '', BUSD: '', USDT: '' }
-} else if (chain == polygon) {
-  baseTokens = ['WETH', 'USDT', 'USDC', 'WMATIC', 'DAI']
-  basePairAddresses = { WETH: '', USDT: '', USDC: '', WMATIC: '', DAI: '' }
-} else if (chain == eth) {
-  baseTokens = ['WETH', 'USDT']
-  basePairAddresses = { WETH: '', USDT: '' }
-}
-const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
-
-let baseTokenUsdPairAddresses// WBNB/BUSD, WETH/USDT, WMATIC/USDT
-let baseTokenUsdPairToken0Addresses// WBNB or BUSD, WETH or USDT, WMATIC or USDT
-
-const baseTokenUsdPairAddressesBsc = {
-  WBNBBUSD: '0x58F876857a02D6762E0101bb5C46A8c1ED44Dc16'
-}
-const baseTokenUsdPairToken0AddressesBsc = {
-  WBNBBUSD: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'// WBNB
-}
-
-const baseTokenUsdPairAddressesPolygon = {
-  WMATICUSDT: '0x604229c960e5CACF2aaEAc8Be68Ac07BA9dF81c3',
-  WETHUSDT: '0xF6422B997c7F54D1c6a6e103bcb1499EeA0a7046'
-}
-const baseTokenUsdPairToken0AddressesPolygon = {
-  WMATICUSDT: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
-  WETHUSDT: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'// WETH
-}
-
-const baseTokenUsdPairAddressesEth = {
-  WETHUSDT: '0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852'
-}
-const baseTokenUsdPairToken0AddressesEth = {
-  WETHUSDT: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'// WETH
-}
-
-if (chain == bsc) {
-  baseTokenUsdPairAddresses = baseTokenUsdPairAddressesBsc
-  baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesBsc
-} else if (chain == polygon) {
-  baseTokenUsdPairAddresses = baseTokenUsdPairAddressesPolygon
-  baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesPolygon
-}
-if (chain == eth) {
-  baseTokenUsdPairAddresses = baseTokenUsdPairAddressesEth
-  baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesEth
-}
 
 let priceBnb = 0// for bsc chain
 let priceMatic = 0// for polygon chain
@@ -341,25 +79,11 @@ async function newTrade () {
   alreadyInFunction = true
 
   if (!alreadyBought) {
-    if (chain == eth) {
-      walletToken = walletTokenEth
-      if (inputTokenEth != '') {
-        inputToken = inputTokenEth
-      }
-      outputToken = outputTokenEth
-    } else if (chain == bsc) {
-      walletToken = walletTokenBsc
-      if (inputTokenBsc != '') {
-        inputToken = inputTokenBsc
-      }
-      outputToken = outputTokenBsc
-    } else if (chain == polygon) {
-      walletToken = walletTokenPolygon
-      if (inputTokenPolygon != '') {
-        inputToken = inputTokenPolygon
-      }
-      outputToken = outputTokenPolygon
+    walletToken = walletTokens[chain]
+    if (inputToken != '') {
+      inputToken = inputTokens[chain]
     }
+    outputToken = outputTokens[chain]
 
     // just in case you forgot to add 'W'
     if (walletToken == 'BNB' || walletToken == 'ETH' || walletToken == 'MATIC') {
@@ -456,7 +180,7 @@ async function newTrade () {
 }
 
 async function checkAllowance (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], token_contract_ABI, account)
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
   let allowance = 0
 
   try {
@@ -470,7 +194,7 @@ async function checkAllowance (tokenSymbol) {
 }
 
 async function approveMax (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], token_contract_ABI, account)
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
   let approval
   try {
     approval = await tokenContractEthers.approve(exchangeAddresses.router, ethers.constants.MaxUint256)
@@ -545,7 +269,7 @@ async function getNativeTokenPrices () {
 }
 
 async function getDecimals (tokenAddress) {
-  const tokenContract = new ethers.Contract(tokenAddress, token_contract_ABI, account)
+  const tokenContract = new ethers.Contract(tokenAddress, TOKEN_CONTRACT_ABI, account)
   let decimals = 0
   try {
     decimals = await tokenContract.decimals()
@@ -1043,7 +767,7 @@ function array_move (arr, old_index, new_index) {
 async function checkBalances (tokenSymbol) {
   let balance = -1
 
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], token_contract_ABI, account)
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
   try {
     balance = await tokenContractEthers.balanceOf(account.address)
   } catch (error) {
