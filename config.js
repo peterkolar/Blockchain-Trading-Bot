@@ -14,3 +14,33 @@ export let sellTresholds = [2, 4, 8];// multipliers based on boughtPrice
 export let sellPriceMultiplier = 1
 
 export const recipient = process.env.ACCOUNT;
+
+const walletTokenEth = 'WETH';
+const inputTokenEth = 'WETH';
+const outputTokenEth = 'RISE';
+
+const walletTokenBsc = 'BUSD';
+const inputTokenBsc = '';
+const outputTokenBsc = 'CBT';
+
+const walletTokenPolygon = 'USDC';
+const inputTokenPolygon = '';// if you don't add base token, it will get it from the biggest liquidity pair
+const outputTokenPolygon = 'KMC';
+
+export let walletTokens = {
+    eth: walletTokenEth,
+    bsc: walletTokenBsc,
+    polygon: walletTokenPolygon
+}
+
+export let inputTokens = {
+    eth: inputTokenEth,
+    bsc: inputTokenBsc,
+    polygon: inputTokenPolygon
+}
+
+export let outputTokens = {
+    eth: outputTokenEth,
+    bsc: outputTokenBsc,
+    polygon: outputTokenPolygon
+}

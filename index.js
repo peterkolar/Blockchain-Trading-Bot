@@ -3,8 +3,8 @@ import dotenv from 'dotenv'
 import { ethers } from 'ethers'
 
 import { eth, bsc, polygon } from './constants/blockchains.js'
-import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient } from './config.js'
-import { walletTokenEth, inputTokenEth, outputTokenEth, walletTokenBsc, inputTokenBsc, outputTokenBsc, walletTokenPolygon, inputTokenPolygon, outputTokenPolygon, tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
+import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens } from './config.js'
+import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS } from './constants/exchanges.js'
 import { RPC_URLS } from './constants/RPCs.js'
 
@@ -28,6 +28,12 @@ const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
 const baseTokenUsdPairAddresses = baseTokenUsdPairAddressesAllChains[chain]// WBNB/BUSD, WETH/USDT, WMATIC/USDT
 const baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesAllChains[chain]// WBNB or BUSD, WETH or USDT, WMATIC or USDT
 
+let walletToken = walletTokens[chain]
+let inputToken = inputTokens[chain]
+let outputToken = outputTokens[chain]
+
+provider = new ethers.providers.JsonRpcProvider(RPC_URL)
+
 const wallet = ethers.Wallet.fromMnemonic(process.env.MNEMONIC)
 
 const account = wallet.connect(provider)
@@ -46,10 +52,6 @@ const router = new ethers.Contract(
 )
 
 let alreadyInFunction = false
-
-let walletToken = ''
-let inputToken = ''
-let outputToken = ''
 
 let izpisWalletInputOutput = false
 
@@ -89,25 +91,11 @@ async function newTrade () {
   alreadyInFunction = true
 
   if (!alreadyBought) {
-    if (chain == eth) {
-      walletToken = walletTokenEth
-      if (inputTokenEth != '') {
-        inputToken = inputTokenEth
-      }
-      outputToken = outputTokenEth
-    } else if (chain == bsc) {
-      walletToken = walletTokenBsc
-      if (inputTokenBsc != '') {
-        inputToken = inputTokenBsc
-      }
-      outputToken = outputTokenBsc
-    } else if (chain == polygon) {
-      walletToken = walletTokenPolygon
-      if (inputTokenPolygon != '') {
-        inputToken = inputTokenPolygon
-      }
-      outputToken = outputTokenPolygon
+    walletToken = walletTokens[chain]
+    if (inputToken != '') {
+      inputToken = inputTokens[chain]
     }
+    outputToken = outputTokens[chain]
 
     // just in case you forgot to add 'W'
     if (walletToken == 'BNB' || walletToken == 'ETH' || walletToken == 'MATIC') {

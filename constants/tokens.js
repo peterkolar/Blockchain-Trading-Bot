@@ -1,19 +1,6 @@
 import { eth, bsc, polygon } from './blockchains.js'
 import { chain } from '../config.js'
 
-export const walletTokenEth = 'WETH';
-export const inputTokenEth = 'WETH';
-export const outputTokenEth = 'RISE';
-
-export const walletTokenBsc = 'BUSD';
-export const inputTokenBsc = '';
-export const outputTokenBsc = 'CBT';
-
-export const walletTokenPolygon = 'USDC';
-export const inputTokenPolygon = '';// if you don't add base token, it will get it from the biggest liquidity pair
-export const outputTokenPolygon = 'KMC';
-
-
 const tokenAddressesEth = {
     WETH: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
     WBTC: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
