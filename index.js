@@ -4,7 +4,7 @@ import { ethers } from 'ethers'
 
 import { eth, bsc, polygon } from './constants/blockchains.js'
 import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient } from './config.js'
-import { walletTokenEth, inputTokenEth, outputTokenEth, walletTokenBsc, inputTokenBsc, outputTokenBsc, walletTokenPolygon, inputTokenPolygon, outputTokenPolygon, tokenAddressesAllChains, tokenDecimalsAllChains } from './constants/tokens.js'
+import { walletTokenEth, inputTokenEth, outputTokenEth, walletTokenBsc, inputTokenBsc, outputTokenBsc, walletTokenPolygon, inputTokenPolygon, outputTokenPolygon, tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS } from './constants/exchanges.js'
 import { RPC_URLS } from './constants/RPCs.js'
 
@@ -20,9 +20,13 @@ const exchangeAddresses = exchangesAddresses[chain]
 
 const EXCHANGE_PAIR_ABI = EXCHANGE_PAIR_ABIS[chain]
 
-const token_contract_ABI = [{ constant: true, inputs: [], name: 'name', outputs: [{ name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ name: 'guy', type: 'address' }, { name: 'wad', type: 'uint256' }], name: 'approve', outputs: [{ name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'totalSupply', outputs: [{ name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ name: 'src', type: 'address' }, { name: 'dst', type: 'address' }, { name: 'wad', type: 'uint256' }], name: 'transferFrom', outputs: [{ name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [{ name: 'wad', type: 'uint256' }], name: 'withdraw', outputs: [], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: true, inputs: [], name: 'decimals', outputs: [{ name: '', type: 'uint8' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [{ name: '', type: 'address' }], name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: true, inputs: [], name: 'symbol', outputs: [{ name: '', type: 'string' }], payable: false, stateMutability: 'view', type: 'function' }, { constant: false, inputs: [{ name: 'dst', type: 'address' }, { name: 'wad', type: 'uint256' }], name: 'transfer', outputs: [{ name: '', type: 'bool' }], payable: false, stateMutability: 'nonpayable', type: 'function' }, { constant: false, inputs: [], name: 'deposit', outputs: [], payable: true, stateMutability: 'payable', type: 'function' }, { constant: true, inputs: [{ name: '', type: 'address' }, { name: '', type: 'address' }], name: 'allowance', outputs: [{ name: '', type: 'uint256' }], payable: false, stateMutability: 'view', type: 'function' }, { payable: true, stateMutability: 'payable', type: 'fallback' }, { anonymous: false, inputs: [{ indexed: true, name: 'src', type: 'address' }, { indexed: true, name: 'guy', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Approval', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, name: 'src', type: 'address' }, { indexed: true, name: 'dst', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Transfer', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, name: 'dst', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Deposit', type: 'event' }, { anonymous: false, inputs: [{ indexed: true, name: 'src', type: 'address' }, { indexed: false, name: 'wad', type: 'uint256' }], name: 'Withdrawal', type: 'event' }]
+const baseTokens = baseTokensAllChains[chain]
+const basePairAddresses = basePairAddressesAllChains[chain]
 
-provider = new ethers.providers.JsonRpcProvider(RPC_URL)
+const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
+
+const baseTokenUsdPairAddresses = baseTokenUsdPairAddressesAllChains[chain]// WBNB/BUSD, WETH/USDT, WMATIC/USDT
+const baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesAllChains[chain]// WBNB or BUSD, WETH or USDT, WMATIC or USDT
 
 const wallet = ethers.Wallet.fromMnemonic(process.env.MNEMONIC)
 
@@ -48,59 +52,6 @@ let inputToken = ''
 let outputToken = ''
 
 let izpisWalletInputOutput = false
-
-let baseTokens
-let basePairAddresses
-
-if (chain == bsc) {
-  baseTokens = ['WBNB', 'BUSD', 'USDT']
-  basePairAddresses = { WBNB: '', BUSD: '', USDT: '' }
-} else if (chain == polygon) {
-  baseTokens = ['WETH', 'USDT', 'USDC', 'WMATIC', 'DAI']
-  basePairAddresses = { WETH: '', USDT: '', USDC: '', WMATIC: '', DAI: '' }
-} else if (chain == eth) {
-  baseTokens = ['WETH', 'USDT']
-  basePairAddresses = { WETH: '', USDT: '' }
-}
-const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
-
-let baseTokenUsdPairAddresses// WBNB/BUSD, WETH/USDT, WMATIC/USDT
-let baseTokenUsdPairToken0Addresses// WBNB or BUSD, WETH or USDT, WMATIC or USDT
-
-const baseTokenUsdPairAddressesBsc = {
-  WBNBBUSD: '0x58F876857a02D6762E0101bb5C46A8c1ED44Dc16'
-}
-const baseTokenUsdPairToken0AddressesBsc = {
-  WBNBBUSD: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'// WBNB
-}
-
-const baseTokenUsdPairAddressesPolygon = {
-  WMATICUSDT: '0x604229c960e5CACF2aaEAc8Be68Ac07BA9dF81c3',
-  WETHUSDT: '0xF6422B997c7F54D1c6a6e103bcb1499EeA0a7046'
-}
-const baseTokenUsdPairToken0AddressesPolygon = {
-  WMATICUSDT: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
-  WETHUSDT: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'// WETH
-}
-
-const baseTokenUsdPairAddressesEth = {
-  WETHUSDT: '0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852'
-}
-const baseTokenUsdPairToken0AddressesEth = {
-  WETHUSDT: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'// WETH
-}
-
-if (chain == bsc) {
-  baseTokenUsdPairAddresses = baseTokenUsdPairAddressesBsc
-  baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesBsc
-} else if (chain == polygon) {
-  baseTokenUsdPairAddresses = baseTokenUsdPairAddressesPolygon
-  baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesPolygon
-}
-if (chain == eth) {
-  baseTokenUsdPairAddresses = baseTokenUsdPairAddressesEth
-  baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesEth
-}
 
 let priceBnb = 0// for bsc chain
 let priceMatic = 0// for polygon chain
@@ -253,7 +204,7 @@ async function newTrade () {
 }
 
 async function checkAllowance (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], token_contract_ABI, account)
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
   let allowance = 0
 
   try {
@@ -267,7 +218,7 @@ async function checkAllowance (tokenSymbol) {
 }
 
 async function approveMax (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], token_contract_ABI, account)
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
   let approval
   try {
     approval = await tokenContractEthers.approve(exchangeAddresses.router, ethers.constants.MaxUint256)
@@ -342,7 +293,7 @@ async function getNativeTokenPrices () {
 }
 
 async function getDecimals (tokenAddress) {
-  const tokenContract = new ethers.Contract(tokenAddress, token_contract_ABI, account)
+  const tokenContract = new ethers.Contract(tokenAddress, TOKEN_CONTRACT_ABI, account)
   let decimals = 0
   try {
     decimals = await tokenContract.decimals()
@@ -840,7 +791,7 @@ function array_move (arr, old_index, new_index) {
 async function checkBalances (tokenSymbol) {
   let balance = -1
 
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], token_contract_ABI, account)
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
   try {
     balance = await tokenContractEthers.balanceOf(account.address)
   } catch (error) {
