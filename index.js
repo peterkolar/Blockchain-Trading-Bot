@@ -3,10 +3,9 @@ import dotenv from 'dotenv'
 import { ethers } from 'ethers'
 
 import { eth, bsc, polygon } from './constants/blockchains.js'
-import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens } from './config.js'
+import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens, RPC_URLS } from './config.js'
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
-import { RPC_URLS } from './constants/RPCs.js'
 import { MS_2_MIN } from './constants/simple.js'
 
 const RPC_URL = RPC_URLS[chain]
