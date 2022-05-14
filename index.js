@@ -5,11 +5,9 @@ import { ethers } from 'ethers'
 import { eth, bsc, polygon } from './constants/blockchains.js'
 import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens } from './config.js'
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
-import { exchangesAddresses, EXCHANGE_PAIR_ABIS } from './constants/exchanges.js'
+import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { RPC_URLS } from './constants/RPCs.js'
 import { MS_2_MIN } from './constants/simple.js'
-
-let provider
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -31,7 +29,7 @@ let walletToken = walletTokens[chain]
 let inputToken = inputTokens[chain]
 let outputToken = outputTokens[chain]
 
-provider = new ethers.providers.JsonRpcProvider(RPC_URL)
+const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
 
 const wallet = ethers.Wallet.fromMnemonic(process.env.MNEMONIC)
 
@@ -40,13 +38,7 @@ const account = wallet.connect(provider)
 // functions from Contract Source Code, not from Contract ABI section - you only need interface
 const router = new ethers.Contract(
   exchangeAddresses.router,
-  [
-    'function getAmountsOut(uint amountIn, address[] memory path) public view returns (uint[] memory amounts)',
-    'function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)',
-    // manually added:
-    'function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)',
-    'function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)'
-  ],
+  ROUTER_FUNCTIONS,
   account
 )
 
