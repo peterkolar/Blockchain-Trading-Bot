@@ -5,7 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
-import { checkAllowance } from './utils.js'
+import { checkAllowance, approveMax } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -104,7 +104,7 @@ async function newTrade () {
     if (allowance == 0) {
       let approved = false
       while (!approved) {
-        approved = await approveMax(outputToken)
+        approved = await approveMax(account, outputToken)
       }
     }
     outputTokenApproved = true
@@ -178,25 +178,6 @@ async function newTrade () {
   }
 
   alreadyInFunction = false
-}
-
-async function approveMax (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
-  let approval
-  try {
-    approval = await tokenContractEthers.approve(exchangeAddresses.router, ethers.constants.MaxUint256)
-    console.log('approved ' + ethers.constants.MaxUint256 + ' ' + tokenSymbol + ' for owner ' + account.address + ' and sender ' + exchangeAddresses.router)
-
-    return true
-  } catch (error) {
-    console.log('error approve: ' + error.message)
-
-    if (approval != undefined) {
-      console.log('\n\n!!!APPROVAL FAILED!!!\ntransactionHash: ' + approval.hash + '\n\n')
-    }
-
-    return false
-  }
 }
 
 async function getNativeTokenPrices () {
@@ -576,7 +557,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
           if (allowance == 0) {
             let approved = false
             while (!approved) {
-              approved = await approveMax(outputTokenSymbol)
+              approved = await approveMax(account, outputTokenSymbol)
             }
           }
           outputTokenApproved = true// če je prišel do sem, je zihr approvan

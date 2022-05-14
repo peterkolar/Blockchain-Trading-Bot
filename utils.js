@@ -19,3 +19,22 @@ export async function checkAllowance (account, tokenSymbol) {
 
   return allowance
 }
+
+export async function approveMax (account, tokenSymbol) {
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
+  let approval
+  try {
+    approval = await tokenContractEthers.approve(exchangeAddresses.router, ethers.constants.MaxUint256)
+    console.log('approved ' + ethers.constants.MaxUint256 + ' ' + tokenSymbol + ' for owner ' + account.address + ' and sender ' + exchangeAddresses.router)
+
+    return true
+  } catch (error) {
+    console.log('error approve: ' + error.message)
+
+    if (approval != undefined) {
+      console.log('\n\n!!!APPROVAL FAILED!!!\ntransactionHash: ' + approval.hash + '\n\n')
+    }
+
+    return false
+  }
+}
