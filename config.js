@@ -59,13 +59,13 @@ export const gasPrices = {
   [polygon]: '201'
 }
 
-export const nativeTokenPairsInputs = {
+export const nativeTokensPairsInputs = {
   [eth]: ['WETH'],
   [bsc]: ['WBNB'],
   [polygon]: ['WMATIC', 'WETH']
 }
 
-export const nativeTokenPairsOutputs = {
+export const nativeTokensPairsOutputs = {
   [eth]: ['USDT'],
   [bsc]: ['BUSD'],
   [polygon]: ['USDT', 'USDT']
