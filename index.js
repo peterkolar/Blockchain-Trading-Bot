@@ -81,26 +81,106 @@ async function newTrade () {
 
   alreadyInFunction = true
 
-  if (!alreadyBought) {
-    walletToken = walletTokens[chain]
-    if (inputToken != '') {
-      inputToken = inputTokens[chain]
-    }
-    outputToken = outputTokens[chain]
-
-    // just in case you forgot to add 'W'
-    if (walletToken == 'BNB' || walletToken == 'ETH' || walletToken == 'MATIC') {
-      walletToken = 'W' + walletToken
-    }
-    if (inputToken == 'BNB' || inputToken == 'ETH' || inputToken == 'MATIC') {
-      inputToken = 'W' + inputToken
-    }
-
-    if (!izpisWalletInputOutput) {
-      izpisWalletInputOutput = true
-    }
+  if (alreadyBought) {
+    await tryToSell()
+  } else {
+    await tryToBuy()
   }
 
+  alreadyInFunction = false
+}
+
+async function tryToBuy () {
+  walletToken = walletTokens[chain]
+  if (inputToken != '') {
+    inputToken = inputTokens[chain]
+  }
+  outputToken = outputTokens[chain]
+
+  // just in case you forgot to add 'W'
+  if (walletToken == 'BNB' || walletToken == 'ETH' || walletToken == 'MATIC') {
+    walletToken = 'W' + walletToken
+  }
+  if (inputToken == 'BNB' || inputToken == 'ETH' || inputToken == 'MATIC') {
+    inputToken = 'W' + inputToken
+  }
+
+  if (!izpisWalletInputOutput) {
+    izpisWalletInputOutput = true
+  }
+
+  await approveIfNeeded()
+
+  await getNativeTokenPrices()
+
+  // get decimals if needed
+  while (inputToken != '' && tokenDecimals[inputToken] == 0) {
+    tokenDecimals[inputToken] = await getDecimals(account, tokenAddresses[inputToken])
+  }
+  while (tokenDecimals[outputToken] == 0) {
+    tokenDecimals[outputToken] = await getDecimals(account, tokenAddresses[outputToken])
+  }
+
+  console.log('decimals: ' + inputToken + ' ' + tokenDecimals[inputToken] + ', ' + outputToken + ' ' + tokenDecimals[outputToken])
+
+  /// GET CORRECT LIQUIDITY PAIR ///
+
+  // checks, if inputToken is specified
+  const { inputTokenSymbol, rate, inputTokenReserve, outputTokenReserve } = await GetCorrectLiquidityPair({ inputTokenSymbol: inputToken, outputTokenSymbol: outputToken })
+  if (inputTokenSymbol != '' && rate != 0) {
+    inputToken = inputTokenSymbol
+  } else // if (inputTokenSymbol == '')
+  {
+    console.log('No big enough liquidity pair found for outputToken: ' + outputToken)
+
+    alreadyInFunction = false
+    return
+  }
+
+  if ((buy) && !alreadyBought && failedBuyTransactions <= 5) {
+    await buyPair({
+      walletTokenSymbol: walletToken,
+      inputTokenSymbol: inputToken,
+      outputTokenSymbol: outputToken,
+      rate// rate vedno gledaš glede na inputToken, ne walletToken
+    })
+  }
+}
+
+async function tryToSell () {
+  await approveIfNeeded()
+
+  // you already have inputToken and output token decimals, so you check the price
+  const { rate, pairAddressOut, pairToken0AddressOut, inputTokenReserve, outputTokenReserve } = await checkPair({
+    inputTokenSymbol: inputToken,
+    outputTokenSymbol: outputToken,
+    logging: true,
+    pairAddressIn: '',
+    pairToken0AddressIn: ''
+  })
+
+  currentPriceBase = 1 / rate
+
+  if (buy && alreadyBought) {
+    // sell bought token
+    if (boughtPriceBase != 0 && boughtWalletTokenAmount != 0)// just in case
+    {
+      const balanceToSell = amountToSell.mul(33).div(100)// you get 33%
+
+      console.log('current price base: ' + currentPriceBase + ', bought price base: ' + boughtPriceBase + ', balanceToSell: ' + balanceToSell)
+
+      if (currentPriceBase > sellTresholds[0] * boughtPriceBase * sellPriceMultiplier && successfulSells == 0 ||
+          currentPriceBase > sellTresholds[1] * boughtPriceBase * sellPriceMultiplier && successfulSells == 1 ||
+          currentPriceBase > sellTresholds[2] * boughtPriceBase * sellPriceMultiplier && successfulSells == 2) {
+        await SellBoughtToken({ balanceToSell })
+      }
+    } else {
+      console.log('This should not happen: boughtPriceBase == 0 or boughtWalletTokenAmount == 0')
+    }
+  }
+}
+
+async function approveIfNeeded () {
   if (!outputTokenApproved) {
     const allowance = await checkAllowance(account, outputToken)
     if (allowance == 0) {
@@ -111,75 +191,6 @@ async function newTrade () {
     }
     outputTokenApproved = true
   }
-
-  if (!alreadyBought) {
-    await getNativeTokenPrices()
-
-    // get decimals if needed
-    while (inputToken != '' && tokenDecimals[inputToken] == 0) {
-      tokenDecimals[inputToken] = await getDecimals(account, tokenAddresses[inputToken])
-    }
-    while (tokenDecimals[outputToken] == 0) {
-      tokenDecimals[outputToken] = await getDecimals(account, tokenAddresses[outputToken])
-    }
-
-    console.log('decimals: ' + inputToken + ' ' + tokenDecimals[inputToken] + ', ' + outputToken + ' ' + tokenDecimals[outputToken])
-
-    /// GET CORRECT LIQUIDITY PAIR ///
-
-    // checks, if inputToken is specified
-    const { inputTokenSymbol, rate, inputTokenReserve, outputTokenReserve } = await GetCorrectLiquidityPair({ inputTokenSymbol: inputToken, outputTokenSymbol: outputToken })
-    if (inputTokenSymbol != '' && rate != 0) {
-      inputToken = inputTokenSymbol
-    } else // if (inputTokenSymbol == '')
-    {
-      console.log('No big enough liquidity pair found for outputToken: ' + outputToken)
-
-      alreadyInFunction = false
-      return
-    }
-
-    if ((buy) && !alreadyBought && failedBuyTransactions <= 5) {
-      await buyPair({
-        walletTokenSymbol: walletToken,
-        inputTokenSymbol: inputToken,
-        outputTokenSymbol: outputToken,
-        rate// rate vedno gledaš glede na inputToken, ne walletToken
-      })
-    }
-  } else // if (alreadyBought)
-  {
-    // you already have inputToken and output token decimals, so you check the price
-    const { rate, pairAddressOut, pairToken0AddressOut, inputTokenReserve, outputTokenReserve } = await checkPair({
-      inputTokenSymbol: inputToken,
-      outputTokenSymbol: outputToken,
-      logging: true,
-      pairAddressIn: '',
-      pairToken0AddressIn: ''
-    })
-
-    currentPriceBase = 1 / rate
-
-    if (buy && alreadyBought) {
-      // sell bought token
-      if (boughtPriceBase != 0 && boughtWalletTokenAmount != 0)// just in case
-      {
-        const balanceToSell = amountToSell.mul(33).div(100)// you get 33%
-
-        console.log('current price base: ' + currentPriceBase + ', bought price base: ' + boughtPriceBase + ', balanceToSell: ' + balanceToSell)
-
-        if (currentPriceBase > sellTresholds[0] * boughtPriceBase * sellPriceMultiplier && successfulSells == 0 ||
-            currentPriceBase > sellTresholds[1] * boughtPriceBase * sellPriceMultiplier && successfulSells == 1 ||
-            currentPriceBase > sellTresholds[2] * boughtPriceBase * sellPriceMultiplier && successfulSells == 2) {
-          await SellBoughtToken({ balanceToSell })
-        }
-      } else {
-        console.log('This should not happen: boughtPriceBase == 0 or boughtWalletTokenAmount == 0')
-      }
-    }
-  }
-
-  alreadyInFunction = false
 }
 
 async function getNativeTokenPrices () {
