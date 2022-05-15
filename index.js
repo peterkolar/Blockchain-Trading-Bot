@@ -74,16 +74,16 @@ async function tryToExecuteTrade ({ walletToken, inputToken, outputToken, wallet
 
 async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, exchangeAddresses, baseTokens, router }) {
   walletToken = walletTokens[chain]
-  if (inputToken != '') {
+  if (inputToken !== '') {
     inputToken = inputTokens[chain]
   }
   outputToken = outputTokens[chain]
 
   // just in case you forgot to add 'W'
-  if (walletToken == 'BNB' || walletToken == 'ETH' || walletToken == 'MATIC') {
+  if (walletToken === 'BNB' || walletToken === 'ETH' || walletToken === 'MATIC') {
     walletToken = 'W' + walletToken
   }
-  if (inputToken == 'BNB' || inputToken == 'ETH' || inputToken == 'MATIC') {
+  if (inputToken === 'BNB' || inputToken === 'ETH' || inputToken === 'MATIC') {
     inputToken = 'W' + inputToken
   }
 
@@ -91,10 +91,10 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
 
   await getNativeTokenPrices({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, tokenAddresses, tokenDecimals, account })
 
-  while (inputToken != '' && tokenDecimals[inputToken] == 0) {
+  while (inputToken !== '' && tokenDecimals[inputToken] === 0) {
     tokenDecimals[inputToken] = await getDecimals(account, tokenAddresses[inputToken])
   }
-  while (tokenDecimals[outputToken] == 0) {
+  while (tokenDecimals[outputToken] === 0) {
     tokenDecimals[outputToken] = await getDecimals(account, tokenAddresses[outputToken])
   }
 
@@ -104,7 +104,7 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
 
   // checks, if inputToken is specified
   const { inputTokenSymbol, rate } = await GetCorrectLiquidityPair({ inputTokenSymbol: inputToken, outputTokenSymbol: outputToken, tokenAddresses, tokenDecimals, baseTokens, account })
-  if (inputTokenSymbol != '' && rate != 0) {
+  if (inputTokenSymbol !== '' && rate !== 0) {
     inputToken = inputTokenSymbol
   } else // if (inputTokenSymbol == '')
   {
@@ -148,15 +148,15 @@ async function tryToSell ({ inputToken, outputToken, boughtPriceBase, boughtWall
 
   if (buy && alreadyBought) {
     // sell bought token
-    if (boughtPriceBase != 0 && boughtWalletTokenAmount != 0)// just in case
+    if (boughtPriceBase !== 0 && boughtWalletTokenAmount !== 0)// just in case
     {
       const balanceToSell = amountToSell.mul(33).div(100)// you get 33%
 
       console.log('current price base: ' + currentPriceBase + ', bought price base: ' + boughtPriceBase + ', balanceToSell: ' + balanceToSell)
 
-      if (currentPriceBase > sellTresholds[0] * boughtPriceBase * sellPriceMultiplier && successfulSells == 0 ||
-          currentPriceBase > sellTresholds[1] * boughtPriceBase * sellPriceMultiplier && successfulSells == 1 ||
-          currentPriceBase > sellTresholds[2] * boughtPriceBase * sellPriceMultiplier && successfulSells == 2) {
+      if (currentPriceBase > sellTresholds[0] * boughtPriceBase * sellPriceMultiplier && successfulSells === 0 ||
+          currentPriceBase > sellTresholds[1] * boughtPriceBase * sellPriceMultiplier && successfulSells === 1 ||
+          currentPriceBase > sellTresholds[2] * boughtPriceBase * sellPriceMultiplier && successfulSells === 2) {
         await SellBoughtToken({ balanceToSell, currentPriceBase, tokenAddresses, tokenDecimals, exchangeAddresses, router })
       }
     } else {
@@ -184,14 +184,14 @@ async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPair
 
   for (let i = 0; i < inputTokens.length; i++) {
     let pairAddressIn = ''
-    if (baseTokenUsdPairAddresses[inputTokens[i] + outputTokens[i]] != undefined)// sestaviš recimo: WBNBBUSD
+    if (baseTokenUsdPairAddresses[inputTokens[i] + outputTokens[i]] !== undefined)// sestaviš recimo: WBNBBUSD
     {
       pairAddressIn = baseTokenUsdPairAddresses[inputTokens[i] + outputTokens[i]]
     } else {
       console.log('Cannot get pairAddressIn, this should not happen!')
     }
     let pairToken0AddressIn = ''
-    if (baseTokenUsdPairToken0Addresses[inputTokens[i] + outputTokens[i]] != undefined)// sestaviš recimo: WBNBBUSD
+    if (baseTokenUsdPairToken0Addresses[inputTokens[i] + outputTokens[i]] !== undefined)// sestaviš recimo: WBNBBUSD
     {
       pairToken0AddressIn = baseTokenUsdPairToken0Addresses[inputTokens[i] + outputTokens[i]]
     } else {
@@ -209,12 +209,12 @@ async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPair
       account
     })
 
-    if (rate != 0) {
-      if (inputTokens[i] == 'WBNB') {
+    if (rate !== 0) {
+      if (inputTokens[i] === 'WBNB') {
         priceBnb = rate
-      } else if (inputTokens[i] == 'WMATIC') {
+      } else if (inputTokens[i] === 'WMATIC') {
         priceMatic = rate
-      } else if (inputTokens[i] == 'WETH') {
+      } else if (inputTokens[i] === 'WETH') {
         priceEth = rate
       }
     } else {
@@ -239,7 +239,7 @@ async function GetCorrectLiquidityPair (args) {
   let maxReserveUSDvalue = 0
   let maxReserveUSDindex = -1
 
-  if (inputTokenSymbol != '' && baseTokens[0] != inputTokenSymbol) {
+  if (inputTokenSymbol !== '' && baseTokens[0] !== inputTokenSymbol) {
     arrayMove(baseTokens, baseTokens.indexOf(inputTokenSymbol), 0)
   }
 
@@ -258,10 +258,10 @@ async function GetCorrectLiquidityPair (args) {
       tokenDecimals,
       account
     })
-    if (pairAddressOut.toLowerCase() != '0x0000000000000000000000000000000000000000') {
+    if (pairAddressOut.toLowerCase() !== '0x0000000000000000000000000000000000000000') {
       basePairAddresses[baseTokens[i]] = pairAddressOut
     }
-    if (pairToken0AddressOut.toLowerCase() != '') {
+    if (pairToken0AddressOut.toLowerCase() !== '') {
       basePairToken0Addresses[baseTokens[i]] = pairToken0AddressOut
     }
 
@@ -283,7 +283,7 @@ async function GetCorrectLiquidityPair (args) {
       if (!biggestLiquidityPair && maxReserveUSDvalue > minReserveTreshold) {
         return { inputTokenSymbol: baseTokens[maxReserveUSDindex], rate: prices[maxReserveUSDindex], inputTokenReserve: inputTokenReserves[maxReserveUSDindex], outputTokenReserve: outputTokenReserves[maxReserveUSDindex] }
       }
-    } else if (i == 0 && inputTokenSymbol != '' && !getAlternativeBaseToken)// if an inputToken is specified and you want to buy with this pair, not necessarily the best
+    } else if (i === 0 && inputTokenSymbol !== '' && !getAlternativeBaseToken)// if an inputToken is specified and you want to buy with this pair, not necessarily the best
     {
       return { inputTokenSymbol: baseTokens[0], rate: prices[0], inputTokenReserve: inputTokenReserves[0], outputTokenReserve: outputTokenReserves[0] }
     }
@@ -308,21 +308,21 @@ async function checkPair (args) {
 
   let exchangePairAddress = '0x0000000000000000000000000000000000000000'
 
-  if (inputTokenAddress == '' || outputTokenAddress == '') {
+  if (inputTokenAddress === '' || outputTokenAddress === '') {
     console.log('Input or output token address not specified!')
   }
 
   let addressToken0 = ''
   let addressToken1
 
-  if (pairAddressIn == '') {
+  if (pairAddressIn === '') {
     // this is OFF-CHAIN calculation
     exchangePairAddress = calculatePairAddress(inputTokenAddress, outputTokenAddress)
   } else {
     exchangePairAddress = pairAddressIn
   }
 
-  if (exchangePairAddress.toLowerCase() == '0x0000000000000000000000000000000000000000') {
+  if (exchangePairAddress.toLowerCase() === '0x0000000000000000000000000000000000000000') {
     console.log('Requested pair: ' + inputTokenSymbol + '/' + outputTokenSymbol + ' does not exist!')
     return { rate: 0, pairAddressOut: exchangePairAddress, pairToken0AddressOut: addressToken0, inputTokenReserve: 0, outputTokenReserve: 0 }
   }
@@ -341,7 +341,7 @@ async function checkPair (args) {
     return { rate: 0, pairAddressOut: exchangePairAddress, pairToken0AddressOut: addressToken0, inputTokenReserve: 0, outputTokenReserve: 0 }
   }
 
-  if (pairToken0AddressIn == '') {
+  if (pairToken0AddressIn === '') {
     // OFF-CHAIN
     addressToken0 = getToken0(inputTokenAddress, outputTokenAddress)
   } else {
@@ -350,18 +350,18 @@ async function checkPair (args) {
 
   // set addressToken1
   addressToken1 = inputTokenAddress
-  if (addressToken0.toLowerCase() == inputTokenAddress.toLowerCase()) {
+  if (addressToken0.toLowerCase() === inputTokenAddress.toLowerCase()) {
     addressToken1 = outputTokenAddress
   }
 
   let rate = 0
   let inputTokenReserve = 0
   let outputTokenReserve = 0
-  if (inputTokenAddress.toLowerCase() == addressToken0.toLowerCase() && outputTokenAddress.toLowerCase() == addressToken1.toLowerCase())// input = 0, output = 1
+  if (inputTokenAddress.toLowerCase() === addressToken0.toLowerCase() && outputTokenAddress.toLowerCase() === addressToken1.toLowerCase())// input = 0, output = 1
   {
     inputTokenReserve = exchangePairReserves._reserve0
     outputTokenReserve = exchangePairReserves._reserve1
-  } else if (inputTokenAddress.toLowerCase() == addressToken1.toLowerCase() && outputTokenAddress.toLowerCase() == addressToken0.toLowerCase()) {
+  } else if (inputTokenAddress.toLowerCase() === addressToken1.toLowerCase() && outputTokenAddress.toLowerCase() === addressToken0.toLowerCase()) {
     inputTokenReserve = exchangePairReserves._reserve1
     outputTokenReserve = exchangePairReserves._reserve0
   }
@@ -381,7 +381,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
 
   let inputTokenAddress = ''
 
-  if (inputTokenSymbol != '')// input (base) token je znan
+  if (inputTokenSymbol !== '')// input (base) token je znan
   {
     inputTokenAddress = tokenAddresses[inputTokenSymbol]
   }
@@ -392,7 +392,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
   let walletTokenAddress = ''
   let walletTokenDecimals = 0
 
-  if (walletTokenSymbol != '') {
+  if (walletTokenSymbol !== '') {
     walletTokenAddress = tokenAddresses[walletTokenSymbol]
     walletTokenDecimals = tokenDecimals[walletTokenSymbol]
   }
@@ -409,9 +409,9 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
   const amountIn = ethers.utils.parseUnits(amountInNum.toString(), walletTokenDecimals)
 
   let path// token addresses
-  if (walletTokenAddress.toLowerCase() == inputTokenAddress.toLowerCase()) {
+  if (walletTokenAddress.toLowerCase() === inputTokenAddress.toLowerCase()) {
     path = [inputTokenAddress, outputTokenAddress]
-  } else if (walletTokenAddress.toLowerCase() != inputTokenAddress.toLowerCase()) {
+  } else if (walletTokenAddress.toLowerCase() !== inputTokenAddress.toLowerCase()) {
     path = [walletTokenAddress, inputTokenAddress, outputTokenAddress]
   }
 
@@ -438,7 +438,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
     gasLimit,
     gasPrice
   }
-  if (walletTokenAddress.toLowerCase() != exchangeAddresses.nativeToken.toLowerCase()) {
+  if (walletTokenAddress.toLowerCase() !== exchangeAddresses.nativeToken.toLowerCase()) {
     options = {
       gasLimit,
       gasPrice
@@ -451,14 +451,14 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
   const swapExactEthForTokens = 'swapExactEthForTokens'
   const swapExactTokensForTokens = 'swapExactTokensForTokens'
   let swapMethod = swapExactEthForTokens
-  if (walletTokenAddress.toLowerCase() != exchangeAddresses.nativeToken.toLowerCase()) {
+  if (walletTokenAddress.toLowerCase() !== exchangeAddresses.nativeToken.toLowerCase()) {
     swapMethod = swapExactTokensForTokens
   }
 
   if (buy) {
     // with amountOutMin you specify slippage
     const swapArgs = [amountOutMin, path, recipient, Date.now() + MS_2_MIN * 10, options]
-    if (swapMethod == swapExactTokensForTokens) {
+    if (swapMethod === swapExactTokensForTokens) {
       try {
         tx = await router.swapExactTokensForTokens(
           amountIn,
@@ -468,7 +468,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
       } catch (error) {
         console.log('error buy swapExactTokensForTokens: ' + error.message)
       }
-    } else if (swapMethod == swapExactEthForTokens) {
+    } else if (swapMethod === swapExactEthForTokens) {
       try {
         tx = await router.swapExactETHForTokens(
           amountOutMin,
@@ -495,7 +495,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
       } catch (error) {
         console.log('error buy receipt: ' + error.message)
 
-        if (receipt != undefined) {
+        if (receipt !== undefined) {
           console.log('\n\n!!!BUY TRANSACTION FAILED!!!\ntransactionHash: ' + receipt.transactionHash + '\n\n')
         }
       }
@@ -561,7 +561,7 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
 
   let inputTokenAddress = ''
 
-  if (inputToken != '') {
+  if (inputToken !== '') {
     inputTokenAddress = tokenAddresses[inputToken]
   }
 
@@ -571,7 +571,7 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
   let walletTokenAddress = ''
   let walletTokenDecimals = 0
 
-  if (walletToken != '') {
+  if (walletToken !== '') {
     walletTokenAddress = tokenAddresses[walletToken]
     walletTokenDecimals = tokenDecimals[walletToken]
   }
@@ -581,9 +581,9 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
   const amountIn = balanceToSell
 
   let path// token addresses
-  if (walletTokenAddress.toLowerCase() == inputTokenAddress.toLowerCase()) {
+  if (walletTokenAddress.toLowerCase() === inputTokenAddress.toLowerCase()) {
     path = [outputTokenAddress, inputTokenAddress]
-  } else if (walletTokenAddress.toLowerCase() != inputTokenAddress.toLowerCase()) {
+  } else if (walletTokenAddress.toLowerCase() !== inputTokenAddress.toLowerCase()) {
     path = [outputTokenAddress, inputTokenAddress, walletTokenAddress]
   }
 
@@ -615,13 +615,13 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
   const swapExactTokensForEth = 'swapExactTokensForEth'
   const swapExactTokensForTokens = 'swapExactTokensForTokens'
   let swapMethod = swapExactTokensForEth
-  if (walletTokenAddress.toLowerCase() != exchangeAddresses.nativeToken.toLowerCase()) {
+  if (walletTokenAddress.toLowerCase() !== exchangeAddresses.nativeToken.toLowerCase()) {
     swapMethod = swapExactTokensForTokens
   }
 
   if (buy) {
     const swapArgs = [amountIn, amountOutMin, path, recipient, Date.now() + MS_2_MIN * 10, options]
-    if (swapMethod == swapExactTokensForTokens) {
+    if (swapMethod === swapExactTokensForTokens) {
       try {
         tx = await router.swapExactTokensForTokens(
           swapArgs
@@ -630,7 +630,7 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
       } catch (error) {
         console.log('error sell swapExactTokensForTokens: ' + error.message)
       }
-    } else if (swapMethod == swapExactTokensForEth) {
+    } else if (swapMethod === swapExactTokensForEth) {
       try {
         tx = await router.swapExactTokensForETH(
           swapArgs
@@ -654,7 +654,7 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
       } catch (error) {
         console.log('error sell receipt: ' + error.message)
 
-        if (receipt != undefined) {
+        if (receipt !== undefined) {
           console.log('\n\n!!!SELL TRANSACTION ' + (successfulSells + 1) + ' FAILED!!!\ntransactionHash: ' + receipt.transactionHash + '\n\n')
         }
       }
