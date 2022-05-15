@@ -5,7 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
-import { checkAllowance, approveMax } from './utils.js'
+import { checkAllowance, approveMax, getDecimals } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -115,10 +115,10 @@ async function newTrade () {
 
     // get decimals if needed
     while (inputToken != '' && tokenDecimals[inputToken] == 0) {
-      tokenDecimals[inputToken] = await getDecimals(tokenAddresses[inputToken])
+      tokenDecimals[inputToken] = await getDecimals(account, tokenAddresses[inputToken])
     }
     while (tokenDecimals[outputToken] == 0) {
-      tokenDecimals[outputToken] = await getDecimals(tokenAddresses[outputToken])
+      tokenDecimals[outputToken] = await getDecimals(account, tokenAddresses[outputToken])
     }
 
     console.log('decimals: ' + inputToken + ' ' + tokenDecimals[inputToken] + ', ' + outputToken + ' ' + tokenDecimals[outputToken])
@@ -234,18 +234,6 @@ async function getNativeTokenPrices () {
   }
 
   /// END GET BASE PRICES ///
-}
-
-async function getDecimals (tokenAddress) {
-  const tokenContract = new ethers.Contract(tokenAddress, TOKEN_CONTRACT_ABI, account)
-  let decimals = 0
-  try {
-    decimals = await tokenContract.decimals()
-  } catch (error) {
-    console.log('error getDecimals: ' + error.message)
-  }
-
-  return decimals
 }
 
 // returns input token symbol, in case of big enough liquidity, otherwise ""

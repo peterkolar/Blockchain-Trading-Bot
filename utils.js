@@ -38,3 +38,15 @@ export async function approveMax (account, tokenSymbol) {
     return false
   }
 }
+
+export async function getDecimals (account, tokenAddress) {
+  const tokenContract = new ethers.Contract(tokenAddress, TOKEN_CONTRACT_ABI, account)
+  let decimals = 0
+  try {
+    decimals = await tokenContract.decimals()
+  } catch (error) {
+    console.log('error getDecimals: ' + error.message)
+  }
+
+  return decimals
+}
