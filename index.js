@@ -456,15 +456,13 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
   }
 
   if (buy) {
+    // with amountOutMin you specify slippage
+    const swapArgs = [amountOutMin, path, recipient, Date.now() + MS_2_MIN * 10, options]
     if (swapMethod == swapExactTokensForTokens) {
       try {
         tx = await router.swapExactTokensForTokens(
           amountIn,
-          amountOutMin,
-          path,
-          recipient,
-          Date.now() + MS_2_MIN * 10, // 10 minutes
-          options// in swapExactTokensForETH method you have to put amountIn inside options
+          ...swapArgs
         )
         txCreated = true
       } catch (error) {
@@ -473,11 +471,8 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
     } else if (swapMethod == swapExactEthForTokens) {
       try {
         tx = await router.swapExactETHForTokens(
-          amountOutMin, // with amountOutMin you specify slippage
-          path,
-          recipient,
-          Date.now() + MS_2_MIN * 10, // 10 minutes
-          options
+          amountOutMin,
+          ...swapArgs
         )
         txCreated = true
       } catch (error) {
@@ -625,15 +620,11 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
   }
 
   if (buy) {
+    const swapArgs = [amountIn, amountOutMin, path, recipient, Date.now() + MS_2_MIN * 10, options]
     if (swapMethod == swapExactTokensForTokens) {
       try {
         tx = await router.swapExactTokensForTokens(
-          amountIn,
-          amountOutMin,
-          path,
-          recipient,
-          Date.now() + MS_2_MIN * 10, // 10 minutes
-          options
+          swapArgs
         )
         txCreated = true
       } catch (error) {
@@ -642,12 +633,7 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
     } else if (swapMethod == swapExactTokensForEth) {
       try {
         tx = await router.swapExactTokensForETH(
-          amountIn,
-          amountOutMin,
-          path,
-          recipient,
-          Date.now() + MS_2_MIN * 10, // 10 minutes
-          options// in swapExactTokensForETH method you have to put amountIn inside options
+          swapArgs
         )
         txCreated = true
       } catch (error) {
