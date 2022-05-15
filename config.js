@@ -58,3 +58,15 @@ export const gasPrices = {
   [bsc]: '6',
   [polygon]: '201'
 }
+
+export const nativeTokenPairsInputs = {
+  [eth]: ['WETH'],
+  [bsc]: ['WBNB'],
+  [polygon]: ['WMATIC', 'WETH']
+}
+
+export const nativeTokenPairsOutputs = {
+  [eth]: ['USDT'],
+  [bsc]: ['BUSD'],
+  [polygon]: ['USDT', 'USDT']
+}

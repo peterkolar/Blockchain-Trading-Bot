@@ -1,7 +1,6 @@
 import { ethers } from 'ethers'
 
-import { eth, bsc, polygon } from './constants/blockchains.js'
-import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens, RPC_URLS } from './config.js'
+import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens, RPC_URLS, nativeTokenPairsInputs, nativeTokenPairsOutputs } from './config.js'
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
@@ -194,19 +193,8 @@ async function approveIfNeeded ({ outputTokenApproved, account, outputToken }) {
 }
 
 async function getNativeTokenPrices () {
-  let inputTokens
-  let outputTokens
-
-  if (chain == bsc) {
-    inputTokens = ['WBNB']
-    outputTokens = ['BUSD']
-  } else if (chain == polygon) {
-    inputTokens = ['WMATIC', 'WETH']
-    outputTokens = ['USDT', 'USDT']
-  } else if (chain == eth) {
-    inputTokens = ['WETH']
-    outputTokens = ['USDT']
-  }
+  const inputTokens = nativeTokenPairsInputs[chain]
+  const outputTokens = nativeTokenPairsOutputs[chain]
 
   for (let i = 0; i < inputTokens.length; i++) {
     let pairAddressIn = ''
