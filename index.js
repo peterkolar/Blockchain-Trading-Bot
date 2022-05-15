@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 
-import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens, RPC_URLS, nativeTokenPairsInputs, nativeTokenPairsOutputs } from './config.js'
+import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens, RPC_URLS, nativeTokensPairsInputs, nativeTokensPairsOutputs } from './config.js'
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
@@ -66,14 +66,14 @@ let successfulSells = 0
 if (repeating) {
   const POLLING_INTERVAL = process.env.POLLING_INTERVAL || 100 // ms
   setInterval(async () => {
-    await newTrade({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved })
+    await newTrade({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses })
   }, POLLING_INTERVAL)
 } else// call just 1 time
 {
   newTrade()
 }
 
-async function newTrade ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved }) {
+async function newTrade ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses }) {
   if (alreadyInFunction) {
     return
   }
@@ -83,13 +83,13 @@ async function newTrade ({ walletToken, inputToken, outputToken, walletTokens, i
   if (alreadyBought) {
     await tryToSell({ inputToken, outputToken, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved })
   } else {
-    await tryToBuy({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, outputTokenApproved })
+    await tryToBuy({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses })
   }
 
   alreadyInFunction = false
 }
 
-async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions }) {
+async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, nativeTokensPairsInputs, nativeTokenPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses }) {
   walletToken = walletTokens[chain]
   if (inputToken != '') {
     inputToken = inputTokens[chain]
@@ -110,7 +110,7 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
 
   await approveIfNeeded({ outputTokenApproved, account, outputToken })
 
-  await getNativeTokenPrices()
+  await getNativeTokenPrices({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses })
 
   // get decimals if needed
   while (inputToken != '' && tokenDecimals[inputToken] == 0) {
@@ -192,9 +192,9 @@ async function approveIfNeeded ({ outputTokenApproved, account, outputToken }) {
   }
 }
 
-async function getNativeTokenPrices () {
-  const inputTokens = nativeTokenPairsInputs[chain]
-  const outputTokens = nativeTokenPairsOutputs[chain]
+async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses }) {
+  const inputTokens = nativeTokensPairsInputs[chain]
+  const outputTokens = nativeTokensPairsOutputs[chain]
 
   for (let i = 0; i < inputTokens.length; i++) {
     let pairAddressIn = ''
