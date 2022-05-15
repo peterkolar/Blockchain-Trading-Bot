@@ -5,7 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
-import { checkAllowance, approveMax, getDecimals, getGasPrice } from './utils.js'
+import { checkAllowance, approveMax, getDecimals, getGasPrice, arrayMove } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -252,7 +252,7 @@ async function GetCorrectLiquidityPair (args) {
   let maxReserveUSDindex = -1
 
   if (inputTokenSymbol != '' && baseTokens[0] != inputTokenSymbol) {
-    array_move(baseTokens, baseTokens.indexOf(inputTokenSymbol), 0)
+    arrayMove(baseTokens, baseTokens.indexOf(inputTokenSymbol), 0)
   }
 
   // get reserves for all pairs (for example BLOK/WETH, BLOK/USDT, BLOK/WMATIC)
@@ -691,16 +691,6 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
     }
   }
 }
-
-function array_move (arr, old_index, new_index) {
-  if (new_index >= arr.length) {
-    let k = new_index - arr.length + 1
-    while (k--) {
-      arr.push(undefined)
-    }
-  }
-  arr.splice(new_index, 0, arr.splice(old_index, 1)[0])
-};
 
 async function checkBalances (tokenSymbol) {
   let balance = -1
