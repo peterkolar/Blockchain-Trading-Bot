@@ -13,17 +13,6 @@ const walletToken = walletTokens[chain]
 const inputToken = inputTokens[chain]
 const outputToken = outputTokens[chain]
 
-const provider = new ethers.providers.JsonRpcProvider(RPC_URLS[chain])
-const wallet = ethers.Wallet.fromMnemonic(process.env.MNEMONIC)
-const account = wallet.connect(provider)
-
-// functions from Contract Source Code, not from Contract ABI section - you only need interface
-const router = new ethers.Contract(
-  exchangesAddresses[chain].router,
-  ROUTER_FUNCTIONS,
-  account
-)
-
 let alreadyInFunction = false
 
 let priceBnb = 0// for bsc chain
@@ -42,17 +31,32 @@ let boughtPriceBase = 0
 
 let successfulSells = 0
 
-if (repeating) {
-  const POLLING_INTERVAL = process.env.POLLING_INTERVAL || 100 // ms
-  setInterval(async () => {
-    await newTrade({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals: tokenDecimalsAllChains[chain], account, tokenAddresses: tokenAddressesAllChains[chain], buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses: baseTokenUsdPairAddressesAllChains[chain], baseTokenUsdPairToken0Addresses: baseTokenUsdPairToken0AddressesAllChains[chain], exchangeAddresses: exchangesAddresses[chain], baseTokens: baseTokensAllChains[chain], router })
-  }, POLLING_INTERVAL)
-} else// call just 1 time
-{
-  newTrade()
+init()
+
+async function init () {
+  const provider = new ethers.providers.JsonRpcProvider(RPC_URLS[chain])
+  const wallet = ethers.Wallet.fromMnemonic(process.env.MNEMONIC)
+  const account = wallet.connect(provider)
+
+  // functions from Contract Source Code, not from Contract ABI section - you only need interface
+  const router = new ethers.Contract(
+    exchangesAddresses[chain].router,
+    ROUTER_FUNCTIONS,
+    account
+  )
+
+  if (repeating) {
+    const POLLING_INTERVAL = process.env.POLLING_INTERVAL || 100 // ms
+    setInterval(async () => {
+      await tryToExecuteTrade({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals: tokenDecimalsAllChains[chain], account, tokenAddresses: tokenAddressesAllChains[chain], buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses: baseTokenUsdPairAddressesAllChains[chain], baseTokenUsdPairToken0Addresses: baseTokenUsdPairToken0AddressesAllChains[chain], exchangeAddresses: exchangesAddresses[chain], baseTokens: baseTokensAllChains[chain], router })
+    }, POLLING_INTERVAL)
+  } else {
+    await tryToExecuteTrade({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals: tokenDecimalsAllChains[chain], account, tokenAddresses: tokenAddressesAllChains[chain], buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses: baseTokenUsdPairAddressesAllChains[chain], baseTokenUsdPairToken0Addresses: baseTokenUsdPairToken0AddressesAllChains[chain], exchangeAddresses: exchangesAddresses[chain], baseTokens: baseTokensAllChains[chain], router })
+  }
 }
 
-async function newTrade ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, exchangeAddresses, baseTokens, router }) {
+// checks, if trade is already executing, if not, checks, if the trade can be executed with specified token and executes it
+async function tryToExecuteTrade ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, exchangeAddresses, baseTokens, router }) {
   if (alreadyInFunction) {
     return
   }
@@ -60,7 +64,7 @@ async function newTrade ({ walletToken, inputToken, outputToken, walletTokens, i
   alreadyInFunction = true
 
   if (alreadyBought) {
-    await tryToSell({ inputToken, outputToken, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, tokenAddresses, tokenDecimals, exchangeAddresses })
+    await tryToSell({ inputToken, outputToken, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved, tokenAddresses, tokenDecimals, exchangeAddresses, account, router })
   } else {
     await tryToBuy({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, outputTokenApproved, nativeTokensPairsInputs, nativeTokensPairsOutputs, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, exchangeAddresses, baseTokens, router })
   }
@@ -85,9 +89,8 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
 
   await approveIfNeeded({ outputTokenApproved, account, outputToken })
 
-  await getNativeTokenPrices({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, tokenAddresses, tokenDecimals })
+  await getNativeTokenPrices({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, tokenAddresses, tokenDecimals, account })
 
-  // get decimals if needed
   while (inputToken != '' && tokenDecimals[inputToken] == 0) {
     tokenDecimals[inputToken] = await getDecimals(account, tokenAddresses[inputToken])
   }
@@ -100,7 +103,7 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
   /// GET CORRECT LIQUIDITY PAIR ///
 
   // checks, if inputToken is specified
-  const { inputTokenSymbol, rate } = await GetCorrectLiquidityPair({ inputTokenSymbol: inputToken, outputTokenSymbol: outputToken, tokenAddresses, tokenDecimals, baseTokens })
+  const { inputTokenSymbol, rate } = await GetCorrectLiquidityPair({ inputTokenSymbol: inputToken, outputTokenSymbol: outputToken, tokenAddresses, tokenDecimals, baseTokens, account })
   if (inputTokenSymbol != '' && rate != 0) {
     inputToken = inputTokenSymbol
   } else // if (inputTokenSymbol == '')
@@ -120,12 +123,13 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
       tokenAddresses,
       tokenDecimals,
       exchangeAddresses,
-      router
+      router,
+      account
     })
   }
 }
 
-async function tryToSell ({ inputToken, outputToken, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, tokenAddresses, tokenDecimals, exchangeAddresses }) {
+async function tryToSell ({ inputToken, outputToken, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, tokenAddresses, tokenDecimals, exchangeAddresses, account, router }) {
   await approveIfNeeded({ outputTokenApproved, account, outputToken })
 
   // you already have inputToken and output token decimals, so you check the price
@@ -136,7 +140,8 @@ async function tryToSell ({ inputToken, outputToken, boughtPriceBase, boughtWall
     pairAddressIn: '',
     pairToken0AddressIn: '',
     tokenAddresses,
-    tokenDecimals
+    tokenDecimals,
+    account
   })
 
   const currentPriceBase = 1 / rate
@@ -152,7 +157,7 @@ async function tryToSell ({ inputToken, outputToken, boughtPriceBase, boughtWall
       if (currentPriceBase > sellTresholds[0] * boughtPriceBase * sellPriceMultiplier && successfulSells == 0 ||
           currentPriceBase > sellTresholds[1] * boughtPriceBase * sellPriceMultiplier && successfulSells == 1 ||
           currentPriceBase > sellTresholds[2] * boughtPriceBase * sellPriceMultiplier && successfulSells == 2) {
-        await SellBoughtToken({ balanceToSell, currentPriceBase, tokenAddresses, tokenDecimals, exchangeAddresses })
+        await SellBoughtToken({ balanceToSell, currentPriceBase, tokenAddresses, tokenDecimals, exchangeAddresses, router })
       }
     } else {
       console.log('This should not happen: boughtPriceBase == 0 or boughtWalletTokenAmount == 0')
@@ -173,7 +178,7 @@ async function approveIfNeeded ({ outputTokenApproved, account, outputToken }) {
   }
 }
 
-async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, tokenAddresses, tokenDecimals }) {
+async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses, tokenAddresses, tokenDecimals, account }) {
   const inputTokens = nativeTokensPairsInputs[chain]
   const outputTokens = nativeTokensPairsOutputs[chain]
 
@@ -200,7 +205,8 @@ async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPair
       pairAddressIn,
       pairToken0AddressIn,
       tokenAddresses,
-      tokenDecimals
+      tokenDecimals,
+      account
     })
 
     if (rate != 0) {
@@ -222,7 +228,7 @@ async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPair
 
 // returns input token symbol, in case of big enough liquidity, otherwise ""
 async function GetCorrectLiquidityPair (args) {
-  const { inputTokenSymbol, outputTokenSymbol, tokenAddresses, tokenDecimals, baseTokens } = args
+  const { inputTokenSymbol, outputTokenSymbol, tokenAddresses, tokenDecimals, baseTokens, account } = args
 
   const prices = []
   const inputTokenReserves = []
@@ -249,7 +255,8 @@ async function GetCorrectLiquidityPair (args) {
       pairAddressIn,
       pairToken0AddressIn,
       tokenAddresses,
-      tokenDecimals
+      tokenDecimals,
+      account
     })
     if (pairAddressOut.toLowerCase() != '0x0000000000000000000000000000000000000000') {
       basePairAddresses[baseTokens[i]] = pairAddressOut
@@ -292,7 +299,7 @@ async function GetCorrectLiquidityPair (args) {
 }
 
 async function checkPair (args) {
-  const { inputTokenSymbol, outputTokenSymbol, pairAddressIn, pairToken0AddressIn, tokenAddresses, tokenDecimals } = args
+  const { inputTokenSymbol, outputTokenSymbol, pairAddressIn, pairToken0AddressIn, tokenAddresses, tokenDecimals, account } = args
 
   const inputTokenAddress = tokenAddresses[inputTokenSymbol]
   const inputTokenDecimals = tokenDecimals[inputTokenSymbol]
@@ -370,7 +377,7 @@ async function checkPair (args) {
 
 async function buyPair (args)// walletTokenSymbol is base token in your wallet, inputTokenSymbol is liquidity pair base token, outputToken is buyToken
 {
-  const { walletTokenSymbol, inputTokenSymbol, outputTokenSymbol, tokenAddresses, tokenDecimals, exchangeAddresses, router } = args
+  const { walletTokenSymbol, inputTokenSymbol, outputTokenSymbol, tokenAddresses, tokenDecimals, exchangeAddresses, router, account } = args
 
   let inputTokenAddress = ''
 
@@ -555,7 +562,7 @@ function returnNativeTokenPrice (tokenSymbol) {
 
 async function SellBoughtToken (args)// walletTokenSymbol is base token in your wallet, inputTokenSymbol is base token from liquidity pair (USDT, WETH, WBNB, WMATIC, USDC, ...), outputToken is buyToken
 {
-  const { balanceToSell, currentPriceBase, tokenAddresses, tokenDecimals, exchangeAddresses } = args
+  const { balanceToSell, currentPriceBase, tokenAddresses, tokenDecimals, exchangeAddresses, router } = args
 
   let inputTokenAddress = ''
 
