@@ -59,6 +59,20 @@ export function getGasPrice () {
   return gasPrice
 }
 
+export async function checkBalances (account, tokenSymbol) {
+  let balance = -1
+
+  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
+  try {
+    balance = await tokenContractEthers.balanceOf(account.address)
+  } catch (error) {
+    console.log('error balanceOf ' + tokenSymbol + ': ' + error.message)
+    return balance
+  }
+
+  return balance
+}
+
 export function arrayMove (arr, oldIndex, newIndex) {
   if (newIndex >= arr.length) {
     let k = newIndex - arr.length + 1

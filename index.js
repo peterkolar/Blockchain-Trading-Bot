@@ -5,7 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
-import { checkAllowance, approveMax, getDecimals, getGasPrice, arrayMove } from './utils.js'
+import { checkAllowance, approveMax, getDecimals, getGasPrice, checkBalances, arrayMove } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -522,7 +522,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
 
         // how much of bought tokens do you have and at what price you bought them
         while (boughtOutputTokenBalance == -1) {
-          boughtOutputTokenBalance = await checkBalances(outputTokenSymbol)
+          boughtOutputTokenBalance = await checkBalances(account, outputTokenSymbol)
         }// returns -1 in case of error
 
         if (amountOutLastToken.lte(boughtOutputTokenBalance))// lte means <=
@@ -690,20 +690,6 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
       }
     }
   }
-}
-
-async function checkBalances (tokenSymbol) {
-  let balance = -1
-
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
-  try {
-    balance = await tokenContractEthers.balanceOf(account.address)
-  } catch (error) {
-    console.log('error balanceOf ' + tokenSymbol + ': ' + error.message)
-    return balance
-  }
-
-  return balance
 }
 
 function getToken0 (tokenAaddress, tokenBaddress) {
