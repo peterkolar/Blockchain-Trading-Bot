@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 
 import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, gasLimit, amountInMaxUsd, sellTresholds, sellPriceMultiplier, recipient, walletTokens, inputTokens, outputTokens, RPC_URLS, nativeTokensPairsInputs, nativeTokensPairsOutputs } from './config.js'
-import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
+import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
 import { checkAllowance, approveMax, getDecimals, getGasPrice, checkBalances, arrayMove, calculatePairAddress, getToken0 } from './utils.js'
@@ -40,8 +40,6 @@ const router = new ethers.Contract(
 )
 
 let alreadyInFunction = false
-
-let izpisWalletInputOutput = false
 
 let priceBnb = 0// for bsc chain
 let priceMatic = 0// for polygon chain
@@ -104,10 +102,6 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
     inputToken = 'W' + inputToken
   }
 
-  if (!izpisWalletInputOutput) {
-    izpisWalletInputOutput = true
-  }
-
   await approveIfNeeded({ outputTokenApproved, account, outputToken })
 
   await getNativeTokenPrices({ nativeTokensPairsInputs, nativeTokensPairsOutputs, chain, baseTokenUsdPairAddresses, baseTokenUsdPairToken0Addresses })
@@ -125,7 +119,7 @@ async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, i
   /// GET CORRECT LIQUIDITY PAIR ///
 
   // checks, if inputToken is specified
-  const { inputTokenSymbol, rate, inputTokenReserve, outputTokenReserve } = await GetCorrectLiquidityPair({ inputTokenSymbol: inputToken, outputTokenSymbol: outputToken })
+  const { inputTokenSymbol, rate } = await GetCorrectLiquidityPair({ inputTokenSymbol: inputToken, outputTokenSymbol: outputToken })
   if (inputTokenSymbol != '' && rate != 0) {
     inputToken = inputTokenSymbol
   } else // if (inputTokenSymbol == '')
@@ -150,7 +144,7 @@ async function tryToSell ({ inputToken, outputToken, boughtPriceBase, boughtWall
   await approveIfNeeded({ outputTokenApproved, account, outputToken })
 
   // you already have inputToken and output token decimals, so you check the price
-  const { rate, pairAddressOut, pairToken0AddressOut, inputTokenReserve, outputTokenReserve } = await checkPair({
+  const { rate } = await checkPair({
     inputTokenSymbol: inputToken,
     outputTokenSymbol: outputToken,
     logging: true,
@@ -212,7 +206,7 @@ async function getNativeTokenPrices ({ nativeTokensPairsInputs, nativeTokensPair
       console.log('Cannot get pairToken0AddressIn, this should not happen!')
     }
 
-    const { rate, pairAddressOut, pairToken0AddressOut, inputTokenReserve, outputTokenReserve } = await checkPair({
+    const { rate } = await checkPair({
       inputTokenSymbol: inputTokens[i],
       outputTokenSymbol: outputTokens[i],
       logging: false,
@@ -307,7 +301,7 @@ async function GetCorrectLiquidityPair (args) {
 }
 
 async function checkPair (args) {
-  const { inputTokenSymbol, outputTokenSymbol, logging, pairAddressIn, pairToken0AddressIn } = args
+  const { inputTokenSymbol, outputTokenSymbol, pairAddressIn, pairToken0AddressIn } = args
 
   const inputTokenAddress = tokenAddresses[inputTokenSymbol]
   const inputTokenDecimals = tokenDecimals[inputTokenSymbol]
@@ -385,7 +379,7 @@ async function checkPair (args) {
 
 async function buyPair (args)// walletTokenSymbol is base token in your wallet, inputTokenSymbol is liquidity pair base token, outputToken is buyToken
 {
-  const { walletTokenSymbol, inputTokenSymbol, outputTokenSymbol, rate } = args
+  const { walletTokenSymbol, inputTokenSymbol, outputTokenSymbol } = args
 
   let inputTokenAddress = ''
 
