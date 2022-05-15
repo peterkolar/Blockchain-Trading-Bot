@@ -23,9 +23,9 @@ const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
 const baseTokenUsdPairAddresses = baseTokenUsdPairAddressesAllChains[chain]// WBNB/BUSD, WETH/USDT, WMATIC/USDT
 const baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesAllChains[chain]// WBNB or BUSD, WETH or USDT, WMATIC or USDT
 
-const walletToken = walletTokens[chain]
-const inputToken = inputTokens[chain]
-const outputToken = outputTokens[chain]
+let walletToken = walletTokens[chain]
+let inputToken = inputTokens[chain]
+let outputToken = outputTokens[chain]
 
 const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
 
@@ -61,6 +61,8 @@ let boughtOutputTokenBalance = -1
 let amountToSell = 0
 let boughtPriceBase = 0
 let currentPriceBase = 0
+
+let successfulSells = 0
 
 if (repeating) {
   const POLLING_INTERVAL = process.env.POLLING_INTERVAL || 100 // ms
@@ -334,10 +336,9 @@ async function checkPair (args) {
     return { rate: 0, pairAddressOut: exchangePairAddress, pairToken0AddressOut: addressToken0, inputTokenReserve: 0, outputTokenReserve: 0 }
   }
 
-  let exchangePairContract
   let exchangePairReserves
 
-  exchangePairContract = new ethers.Contract(exchangePairAddress, EXCHANGE_PAIR_ABI, account)
+  const exchangePairContract = new ethers.Contract(exchangePairAddress, EXCHANGE_PAIR_ABI, account)
   try {
     exchangePairReserves = await exchangePairContract.getReserves()
   } catch (error) {
@@ -387,14 +388,11 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
 {
   const { walletTokenSymbol, inputTokenSymbol, outputTokenSymbol, rate } = args
 
-  tokenPriceBase = 1 / rate
-
   let inputTokenAddress = ''
 
   if (inputTokenSymbol != '')// input (base) token je znan
   {
     inputTokenAddress = tokenAddresses[inputTokenSymbol]
-    inputTokenDecimals = tokenDecimals[inputTokenSymbol]
   }
 
   const outputTokenAddress = tokenAddresses[outputTokenSymbol]
@@ -631,7 +629,7 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
   const swapExactTokensForEth = 'swapExactTokensForEth'
   const swapExactTokensForTokens = 'swapExactTokensForTokens'
   let swapMethod = swapExactTokensForEth
-  if (walletTokenAddress.toLowerCase() != exhcnageAddresses.nativeToken.toLowerCase()) {
+  if (walletTokenAddress.toLowerCase() != exchangeAddresses.nativeToken.toLowerCase()) {
     swapMethod = swapExactTokensForTokens
   }
 
@@ -714,7 +712,6 @@ async function checkBalances (tokenSymbol) {
     console.log('error balanceOf ' + tokenSymbol + ': ' + error.message)
     return balance
   }
-  balanceStr = ethers.utils.formatUnits(balance.toString(), tokenDecimals[tokenSymbol])
 
   return balance
 }
