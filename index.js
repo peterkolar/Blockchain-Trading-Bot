@@ -5,6 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
+import { checkAllowance, approveMax, getDecimals, getGasPrice, checkBalances, arrayMove, calculatePairAddress, getToken0 } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -61,6 +62,8 @@ let amountToSell = 0
 let boughtPriceBase = 0
 let currentPriceBase = 0
 
+let successfulSells = 0
+
 if (repeating) {
   const POLLING_INTERVAL = process.env.POLLING_INTERVAL || 100 // ms
   setInterval(async () => {
@@ -99,11 +102,11 @@ async function newTrade () {
   }
 
   if (!outputTokenApproved) {
-    const allowance = await checkAllowance(outputToken)
+    const allowance = await checkAllowance(account, outputToken)
     if (allowance == 0) {
       let approved = false
       while (!approved) {
-        approved = await approveMax(outputToken)
+        approved = await approveMax(account, outputToken)
       }
     }
     outputTokenApproved = true
@@ -114,10 +117,10 @@ async function newTrade () {
 
     // get decimals if needed
     while (inputToken != '' && tokenDecimals[inputToken] == 0) {
-      tokenDecimals[inputToken] = await getDecimals(tokenAddresses[inputToken])
+      tokenDecimals[inputToken] = await getDecimals(account, tokenAddresses[inputToken])
     }
     while (tokenDecimals[outputToken] == 0) {
-      tokenDecimals[outputToken] = await getDecimals(tokenAddresses[outputToken])
+      tokenDecimals[outputToken] = await getDecimals(account, tokenAddresses[outputToken])
     }
 
     console.log('decimals: ' + inputToken + ' ' + tokenDecimals[inputToken] + ', ' + outputToken + ' ' + tokenDecimals[outputToken])
@@ -179,39 +182,6 @@ async function newTrade () {
   alreadyInFunction = false
 }
 
-async function checkAllowance (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
-  let allowance = 0
-
-  try {
-    allowance = await tokenContractEthers.allowance(account.address, exchangeAddresses.router)
-  } catch (error) {
-    console.log('error checkAllowance for ' + tokenSymbol + ': ' + error.message)
-    return allowance
-  }
-
-  return allowance
-}
-
-async function approveMax (tokenSymbol) {
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
-  let approval
-  try {
-    approval = await tokenContractEthers.approve(exchangeAddresses.router, ethers.constants.MaxUint256)
-    console.log('approved ' + ethers.constants.MaxUint256 + ' ' + tokenSymbol + ' for owner ' + account.address + ' and sender ' + exchangeAddresses.router)
-
-    return true
-  } catch (error) {
-    console.log('error approve: ' + error.message)
-
-    if (approval != undefined) {
-      console.log('\n\n!!!APPROVAL FAILED!!!\ntransactionHash: ' + approval.hash + '\n\n')
-    }
-
-    return false
-  }
-}
-
 async function getNativeTokenPrices () {
   let inputTokens
   let outputTokens
@@ -268,18 +238,6 @@ async function getNativeTokenPrices () {
   /// END GET BASE PRICES ///
 }
 
-async function getDecimals (tokenAddress) {
-  const tokenContract = new ethers.Contract(tokenAddress, TOKEN_CONTRACT_ABI, account)
-  let decimals = 0
-  try {
-    decimals = await tokenContract.decimals()
-  } catch (error) {
-    console.log('error getDecimals: ' + error.message)
-  }
-
-  return decimals
-}
-
 // returns input token symbol, in case of big enough liquidity, otherwise ""
 async function GetCorrectLiquidityPair (args) {
   const { inputTokenSymbol, outputTokenSymbol } = args
@@ -294,7 +252,7 @@ async function GetCorrectLiquidityPair (args) {
   let maxReserveUSDindex = -1
 
   if (inputTokenSymbol != '' && baseTokens[0] != inputTokenSymbol) {
-    array_move(baseTokens, baseTokens.indexOf(inputTokenSymbol), 0)
+    arrayMove(baseTokens, baseTokens.indexOf(inputTokenSymbol), 0)
   }
 
   // get reserves for all pairs (for example BLOK/WETH, BLOK/USDT, BLOK/WMATIC)
@@ -378,10 +336,9 @@ async function checkPair (args) {
     return { rate: 0, pairAddressOut: exchangePairAddress, pairToken0AddressOut: addressToken0, inputTokenReserve: 0, outputTokenReserve: 0 }
   }
 
-  let exchangePairContract
   let exchangePairReserves
 
-  exchangePairContract = new ethers.Contract(exchangePairAddress, EXCHANGE_PAIR_ABI, account)
+  const exchangePairContract = new ethers.Contract(exchangePairAddress, EXCHANGE_PAIR_ABI, account)
   try {
     exchangePairReserves = await exchangePairContract.getReserves()
   } catch (error) {
@@ -431,14 +388,11 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
 {
   const { walletTokenSymbol, inputTokenSymbol, outputTokenSymbol, rate } = args
 
-  tokenPriceBase = 1 / rate
-
   let inputTokenAddress = ''
 
   if (inputTokenSymbol != '')// input (base) token je znan
   {
     inputTokenAddress = tokenAddresses[inputTokenSymbol]
-    inputTokenDecimals = tokenDecimals[inputTokenSymbol]
   }
 
   const outputTokenAddress = tokenAddresses[outputTokenSymbol]
@@ -568,7 +522,7 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
 
         // how much of bought tokens do you have and at what price you bought them
         while (boughtOutputTokenBalance == -1) {
-          boughtOutputTokenBalance = await checkBalances(outputTokenSymbol)
+          boughtOutputTokenBalance = await checkBalances(account, outputTokenSymbol)
         }// returns -1 in case of error
 
         if (amountOutLastToken.lte(boughtOutputTokenBalance))// lte means <=
@@ -585,11 +539,11 @@ async function buyPair (args)// walletTokenSymbol is base token in your wallet, 
 
         // checks, if token is approved and approve it if needed
         if (!outputTokenApproved) {
-          const allowance = await checkAllowance(outputTokenSymbol)
+          const allowance = await checkAllowance(account, outputTokenSymbol)
           if (allowance == 0) {
             let approved = false
             while (!approved) {
-              approved = await approveMax(outputTokenSymbol)
+              approved = await approveMax(account, outputTokenSymbol)
             }
           }
           outputTokenApproved = true// če je prišel do sem, je zihr approvan
@@ -675,7 +629,7 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
   const swapExactTokensForEth = 'swapExactTokensForEth'
   const swapExactTokensForTokens = 'swapExactTokensForTokens'
   let swapMethod = swapExactTokensForEth
-  if (walletTokenAddress.toLowerCase() != exhcnageAddresses.nativeToken.toLowerCase()) {
+  if (walletTokenAddress.toLowerCase() != exchangeAddresses.nativeToken.toLowerCase()) {
     swapMethod = swapExactTokensForTokens
   }
 
@@ -736,70 +690,4 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
       }
     }
   }
-}
-
-function getGasPrice () {
-  let gasPriceStr = ''
-
-  if (chain == bsc) {
-    gasPriceStr = '6'
-  } else if (chain == polygon) {
-    gasPriceStr = '201'
-  } else if (chain == eth) {
-    gasPriceStr = '151'
-  }
-
-  const gasPrice = ethers.utils.parseUnits(gasPriceStr, 'gwei')
-
-  return gasPrice
-}
-
-function array_move (arr, old_index, new_index) {
-  if (new_index >= arr.length) {
-    let k = new_index - arr.length + 1
-    while (k--) {
-      arr.push(undefined)
-    }
-  }
-  arr.splice(new_index, 0, arr.splice(old_index, 1)[0])
-};
-
-async function checkBalances (tokenSymbol) {
-  let balance = -1
-
-  const tokenContractEthers = new ethers.Contract(tokenAddresses[tokenSymbol], TOKEN_CONTRACT_ABI, account)
-  try {
-    balance = await tokenContractEthers.balanceOf(account.address)
-  } catch (error) {
-    console.log('error balanceOf ' + tokenSymbol + ': ' + error.message)
-    return balance
-  }
-  balanceStr = ethers.utils.formatUnits(balance.toString(), tokenDecimals[tokenSymbol])
-
-  return balance
-}
-
-function getToken0 (tokenAaddress, tokenBaddress) {
-  return Number(tokenAaddress) < Number(tokenBaddress) ? tokenAaddress : tokenBaddress
-}
-function getToken1 (tokenAaddress, tokenBaddress) {
-  return Number(tokenAaddress) > Number(tokenBaddress) ? tokenAaddress : tokenBaddress
-}
-
-function calculatePairAddress (tokenAaddress, tokenBaddress) {
-  const token1Address = getToken0(tokenAaddress, tokenBaddress)
-  const token2Address = getToken1(tokenAaddress, tokenBaddress)
-
-  const packedResult = ethers.utils.solidityKeccak256(['bytes', 'bytes'], [token1Address, token2Address])
-
-  const part1 = '0xff'
-  const part2 = exchangeAddresses.initCode
-  const factory1 = exchangeAddresses.factory
-
-  const packedResult2 = ethers.utils.solidityKeccak256(['bytes', 'bytes', 'bytes', 'bytes'], [part1, factory1, packedResult, part2])//
-
-  // string that you get is larger, so you cut the front part
-  const pairAddress = '0x' + packedResult2.substring(packedResult2.length - 40)
-
-  return pairAddress
 }
