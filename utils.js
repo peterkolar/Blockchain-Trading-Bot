@@ -82,3 +82,28 @@ export function arrayMove (arr, oldIndex, newIndex) {
   }
   arr.splice(newIndex, 0, arr.splice(oldIndex, 1)[0])
 };
+
+export function getToken0 (tokenAaddress, tokenBaddress) {
+  return Number(tokenAaddress) < Number(tokenBaddress) ? tokenAaddress : tokenBaddress
+}
+function getToken1 (tokenAaddress, tokenBaddress) {
+  return Number(tokenAaddress) > Number(tokenBaddress) ? tokenAaddress : tokenBaddress
+}
+
+export function calculatePairAddress (tokenAaddress, tokenBaddress) {
+  const token1Address = getToken0(tokenAaddress, tokenBaddress)
+  const token2Address = getToken1(tokenAaddress, tokenBaddress)
+
+  const packedResult = ethers.utils.solidityKeccak256(['bytes', 'bytes'], [token1Address, token2Address])
+
+  const part1 = '0xff'
+  const part2 = exchangeAddresses.initCode
+  const factory1 = exchangeAddresses.factory
+
+  const packedResult2 = ethers.utils.solidityKeccak256(['bytes', 'bytes', 'bytes', 'bytes'], [part1, factory1, packedResult, part2])//
+
+  // string that you get is larger, so you cut the front part
+  const pairAddress = '0x' + packedResult2.substring(packedResult2.length - 40)
+
+  return pairAddress
+}

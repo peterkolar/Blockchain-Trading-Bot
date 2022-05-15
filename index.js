@@ -5,7 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
-import { checkAllowance, approveMax, getDecimals, getGasPrice, checkBalances, arrayMove } from './utils.js'
+import { checkAllowance, approveMax, getDecimals, getGasPrice, checkBalances, arrayMove, calculatePairAddress, getToken0 } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -690,29 +690,4 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
       }
     }
   }
-}
-
-function getToken0 (tokenAaddress, tokenBaddress) {
-  return Number(tokenAaddress) < Number(tokenBaddress) ? tokenAaddress : tokenBaddress
-}
-function getToken1 (tokenAaddress, tokenBaddress) {
-  return Number(tokenAaddress) > Number(tokenBaddress) ? tokenAaddress : tokenBaddress
-}
-
-function calculatePairAddress (tokenAaddress, tokenBaddress) {
-  const token1Address = getToken0(tokenAaddress, tokenBaddress)
-  const token2Address = getToken1(tokenAaddress, tokenBaddress)
-
-  const packedResult = ethers.utils.solidityKeccak256(['bytes', 'bytes'], [token1Address, token2Address])
-
-  const part1 = '0xff'
-  const part2 = exchangeAddresses.initCode
-  const factory1 = exchangeAddresses.factory
-
-  const packedResult2 = ethers.utils.solidityKeccak256(['bytes', 'bytes', 'bytes', 'bytes'], [part1, factory1, packedResult, part2])//
-
-  // string that you get is larger, so you cut the front part
-  const pairAddress = '0x' + packedResult2.substring(packedResult2.length - 40)
-
-  return pairAddress
 }
