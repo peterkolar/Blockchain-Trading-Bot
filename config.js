@@ -52,3 +52,9 @@ export const RPC_URLS = {
   [bsc]: process.env.RPC_URL_BSC_ORIGINAL,
   [polygon]: process.env.RPC_URL_POLYGON_INFURA
 }
+
+export const gasPrices = {
+  [eth]: '151',
+  [bsc]: '6',
+  [polygon]: '201'
+}

@@ -1,5 +1,5 @@
 import { tokenAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
-import { chain } from './config.js'
+import { chain, gasPrices } from './config.js'
 import { ethers } from 'ethers'
 import { exchangesAddresses } from './constants/exchanges.js'
 
@@ -49,4 +49,12 @@ export async function getDecimals (account, tokenAddress) {
   }
 
   return decimals
+}
+
+export function getGasPrice () {
+  const gasPriceStr = gasPrices[chain]
+
+  const gasPrice = ethers.utils.parseUnits(gasPriceStr, 'gwei')
+
+  return gasPrice
 }

@@ -5,7 +5,7 @@ import { chain, buy, repeating, biggestLiquidityPair, getAlternativeBaseToken, g
 import { tokenAddressesAllChains, tokenDecimalsAllChains, baseTokenUsdPairAddressesAllChains, baseTokenUsdPairToken0AddressesAllChains, baseTokensAllChains, basePairAddressesAllChains, TOKEN_CONTRACT_ABI } from './constants/tokens.js'
 import { exchangesAddresses, EXCHANGE_PAIR_ABIS, ROUTER_FUNCTIONS } from './constants/exchanges.js'
 import { MS_2_MIN } from './constants/simple.js'
-import { checkAllowance, approveMax, getDecimals } from './utils.js'
+import { checkAllowance, approveMax, getDecimals, getGasPrice } from './utils.js'
 
 const RPC_URL = RPC_URLS[chain]
 const tokenAddresses = tokenAddressesAllChains[chain]
@@ -692,22 +692,6 @@ async function SellBoughtToken (args)// walletTokenSymbol is base token in your 
       }
     }
   }
-}
-
-function getGasPrice () {
-  let gasPriceStr = ''
-
-  if (chain == bsc) {
-    gasPriceStr = '6'
-  } else if (chain == polygon) {
-    gasPriceStr = '201'
-  } else if (chain == eth) {
-    gasPriceStr = '151'
-  }
-
-  const gasPrice = ethers.utils.parseUnits(gasPriceStr, 'gwei')
-
-  return gasPrice
 }
 
 function array_move (arr, old_index, new_index) {
