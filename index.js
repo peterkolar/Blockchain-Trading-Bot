@@ -23,9 +23,9 @@ const basePairToken0Addresses = JSON.parse(JSON.stringify(basePairAddresses))
 const baseTokenUsdPairAddresses = baseTokenUsdPairAddressesAllChains[chain]// WBNB/BUSD, WETH/USDT, WMATIC/USDT
 const baseTokenUsdPairToken0Addresses = baseTokenUsdPairToken0AddressesAllChains[chain]// WBNB or BUSD, WETH or USDT, WMATIC or USDT
 
-let walletToken = walletTokens[chain]
-let inputToken = inputTokens[chain]
-let outputToken = outputTokens[chain]
+const walletToken = walletTokens[chain]
+const inputToken = inputTokens[chain]
+const outputToken = outputTokens[chain]
 
 const provider = new ethers.providers.JsonRpcProvider(RPC_URL)
 
@@ -67,14 +67,14 @@ let successfulSells = 0
 if (repeating) {
   const POLLING_INTERVAL = process.env.POLLING_INTERVAL || 100 // ms
   setInterval(async () => {
-    await newTrade()
+    await newTrade({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved })
   }, POLLING_INTERVAL)
 } else// call just 1 time
 {
   newTrade()
 }
 
-async function newTrade () {
+async function newTrade ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved }) {
   if (alreadyInFunction) {
     return
   }
@@ -82,15 +82,15 @@ async function newTrade () {
   alreadyInFunction = true
 
   if (alreadyBought) {
-    await tryToSell()
+    await tryToSell({ inputToken, outputToken, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells, outputTokenApproved })
   } else {
-    await tryToBuy()
+    await tryToBuy({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions, outputTokenApproved })
   }
 
   alreadyInFunction = false
 }
 
-async function tryToBuy () {
+async function tryToBuy ({ walletToken, inputToken, outputToken, walletTokens, inputTokens, outputTokens, chain, tokenDecimals, account, tokenAddresses, buy, alreadyBought, failedBuyTransactions }) {
   walletToken = walletTokens[chain]
   if (inputToken != '') {
     inputToken = inputTokens[chain]
@@ -109,7 +109,7 @@ async function tryToBuy () {
     izpisWalletInputOutput = true
   }
 
-  await approveIfNeeded()
+  await approveIfNeeded({ outputTokenApproved, account, outputToken })
 
   await getNativeTokenPrices()
 
@@ -147,8 +147,8 @@ async function tryToBuy () {
   }
 }
 
-async function tryToSell () {
-  await approveIfNeeded()
+async function tryToSell ({ inputToken, outputToken, boughtPriceBase, boughtWalletTokenAmount, amountToSell, sellTresholds, sellPriceMultiplier, successfulSells }) {
+  await approveIfNeeded({ outputTokenApproved, account, outputToken })
 
   // you already have inputToken and output token decimals, so you check the price
   const { rate, pairAddressOut, pairToken0AddressOut, inputTokenReserve, outputTokenReserve } = await checkPair({
@@ -180,7 +180,7 @@ async function tryToSell () {
   }
 }
 
-async function approveIfNeeded () {
+async function approveIfNeeded ({ outputTokenApproved, account, outputToken }) {
   if (!outputTokenApproved) {
     const allowance = await checkAllowance(account, outputToken)
     if (allowance == 0) {
